@@ -1,0 +1,2224 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="theme-color" content="#1d4f7a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="ロケ管理">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <title>ロケツーリズム管理</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <style>
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #d9dde3;
+    --text: #1f2933;
+    --muted: #5f6b7a;
+    --accent: #1d4f7a;
+    --accent-soft: #e6eef6;
+    --warn-bg: #fff4d6;
+    --warn-text: #6b4e00;
+
+    --st-consult-bg: #e3edf8;  --st-consult-fg: #1d4f7a;  /* 相談・調整 */
+    --st-decided-bg: #fde8c8;  --st-decided-fg: #7a4a00;  /* 撮影決定・準備 */
+    --st-shot-bg: #dcf1e6;     --st-shot-fg: #155c38;     /* 実施済み・実績確認 */
+    --st-done-bg: #e7e9ec;     --st-done-fg: #3c4652;     /* 完了 */
+    --st-hold-bg: #f1ecf7;     --st-hold-fg: #5a3f7a;     /* 保留 */
+    --st-stop-bg: #f8e3e3;     --st-stop-fg: #8a2525;     /* 見送り・中止 */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181d; --surface: #1c2229; --border: #313a44; --text: #e4e8ec; --muted: #9aa5b1;
+      --accent: #8fbbe3; --accent-soft: #22303d; --warn-bg: #3a3014; --warn-text: #f1d892;
+      --st-consult-bg: #1f3247; --st-consult-fg: #a9cbee;
+      --st-decided-bg: #45331a; --st-decided-fg: #f4c98a;
+      --st-shot-bg: #1c3b2b;    --st-shot-fg: #9fdcbb;
+      --st-done-bg: #2b3138;    --st-done-fg: #c3cad2;
+      --st-hold-bg: #33294a;    --st-hold-fg: #cdb8ec;
+      --st-stop-bg: #4a2323;    --st-stop-fg: #f2b0b0;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+    font-size: 15px; line-height: 1.6;
+  }
+  a { color: var(--accent); }
+
+  .env-banner { background: var(--warn-bg); color: var(--warn-text); font-size: 12px; padding: 4px 16px; text-align: center; }
+
+  .app-header { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+  .app-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 16px 2px; }
+  .app-title { font-weight: 700; font-size: 16px; }
+  #sheet-link[hidden] { display: none; }
+
+  /* ロケハンのロケ地と評価 */
+  .scout-locs { display: grid; gap: 6px; }
+  .scout-loc { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+  .scout-loc.on { border-color: var(--accent); background: var(--accent-soft); }
+  .form .scout-loc-name { display: flex; gap: 8px; align-items: center; font-weight: 600; font-size: 15px; min-height: 36px; margin: 0; }
+  .form .scout-loc-name input { width: 18px; height: 18px; }
+  .scout-loc-eval { display: none; gap: 6px; margin: 4px 0 4px 26px; }
+  .scout-loc.on .scout-loc-eval { display: grid; grid-template-columns: 8.5em 1fr; }
+  .form .scout-loc-eval select, .form .scout-loc-eval input { min-height: 40px; }
+  .tabs { display: flex; overflow-x: auto; padding: 0 8px; }
+  .tabs a {
+    flex: 0 0 auto; padding: 10px 12px; text-decoration: none; color: var(--muted);
+    border-bottom: 3px solid transparent; font-size: 14px; white-space: nowrap;
+  }
+  .tabs a.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+
+  .view { max-width: 1080px; margin: 0 auto; padding: 16px; }
+  .loading, .empty { color: var(--muted); }
+  .error { background: var(--st-stop-bg); color: var(--st-stop-fg); padding: 12px 16px; border-radius: 6px; }
+
+  h1 { font-size: 20px; margin: 4px 0 16px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+
+  /* 数値タイル */
+  .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+  @media (min-width: 720px) { .tiles { grid-template-columns: repeat(4, 1fr); } }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; text-decoration: none; color: inherit; display: block; }
+  .tile .label { font-size: 13px; color: var(--muted); }
+  .tile .value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .tile .unit { font-size: 13px; color: var(--muted); margin-left: 2px; font-weight: 400; }
+  .tile.attention { border-color: var(--st-decided-fg); }
+  a.tile:hover { border-color: var(--accent); }
+
+  /* ステータス表示 */
+  .badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; font-weight: 600; }
+  .st-consult { background: var(--st-consult-bg); color: var(--st-consult-fg); }
+  .st-decided { background: var(--st-decided-bg); color: var(--st-decided-fg); }
+  .st-shot    { background: var(--st-shot-bg);    color: var(--st-shot-fg); }
+  .st-done    { background: var(--st-done-bg);    color: var(--st-done-fg); }
+  .st-hold    { background: var(--st-hold-bg);    color: var(--st-hold-fg); }
+  .st-stop    { background: var(--st-stop-bg);    color: var(--st-stop-fg); }
+
+  /* 絞り込み */
+  .filters { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 12px; }
+  @media (min-width: 720px) { .filters { grid-template-columns: 2fr 1fr 1fr 1fr; } }
+  .filters input, .filters select {
+    width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text); min-height: 40px;
+  }
+  .count { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+
+  /* 一覧：スマホはカード、PCは表 */
+  .list { list-style: none; padding: 0; margin: 0; }
+  .list li { margin-bottom: 8px; }
+  .row-card {
+    display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; text-decoration: none; color: inherit;
+  }
+  .row-card:hover { border-color: var(--accent); }
+  .row-card .top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+  .row-card .title { font-weight: 700; }
+  .row-card .meta { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .table-wrap { display: none; }
+  @media (min-width: 900px) {
+    .list.responsive { display: none; }
+    .table-wrap { display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: auto; }
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 600; white-space: nowrap; }
+  th button { all: unset; cursor: pointer; }
+  th button:focus-visible { outline: 2px solid var(--accent); }
+  th .arrow { font-size: 11px; color: var(--muted); margin-left: 2px; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--accent-soft); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .nowrap { white-space: nowrap; }
+
+  /* 詳細画面 */
+  .back { display: inline-block; margin-bottom: 8px; font-size: 14px; }
+  .detail-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; }
+  .detail-head h1 { margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .next-action { background: var(--warn-bg); color: var(--warn-text); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; }
+  .next-action .label { font-size: 12px; font-weight: 700; }
+  dl.kv { display: grid; grid-template-columns: 7.5em 1fr; gap: 4px 12px; margin: 0; }
+  dl.kv dt { color: var(--muted); font-size: 13px; }
+  dl.kv dd { margin: 0; overflow-wrap: anywhere; }
+  .grid-2 { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .grid-2 > *, .tiles > * { min-width: 0; }
+  .grid-2 { margin-bottom: 16px; }
+  .grid-2 > .card { margin-bottom: 0; }
+  @media (min-width: 900px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+  .item { border-top: 1px solid var(--border); padding: 10px 0; }
+  .item:first-of-type { border-top: 0; padding-top: 0; }
+  .item .meta { font-size: 13px; color: var(--muted); }
+  .item .body { white-space: pre-wrap; }
+  .chip { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); margin: 2px 4px 2px 0; }
+  .timeline { list-style: none; padding: 0; margin: 0; }
+  .timeline li { padding: 6px 0; border-top: 1px solid var(--border); font-size: 14px; }
+  .timeline li:first-child { border-top: 0; }
+
+  /* 実績画面 */
+  .year-select { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .year-select button {
+    font: inherit; font-size: 14px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); cursor: pointer; min-height: 36px;
+  }
+  .year-select button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+  .bars { list-style: none; padding: 0; margin: 0; }
+  .bars li { display: grid; grid-template-columns: minmax(7em, 40%) 1fr 2.5em; gap: 8px; align-items: center; padding: 4px 0; font-size: 14px; }
+  .bars .bar { height: 12px; background: var(--accent); border-radius: 0 3px 3px 0; min-width: 2px; }
+  .bars .n { text-align: right; font-variant-numeric: tabular-nums; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  /* ボタン・操作 */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    font: inherit; font-size: 14px; padding: 8px 14px; min-height: 40px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--accent); text-decoration: none; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 700; }
+  .btn-small { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+  .page-head { display: flex; flex-wrap: wrap; gap: 8px 12px; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .page-head h1 { margin: 4px 0; }
+  .sec-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .sec-head h2 { margin: 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
+  .status-change { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .status-change select {
+    font: inherit; font-size: 14px; padding: 6px 8px; min-height: 40px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text);
+  }
+  .edit-link { float: right; font-size: 13px; margin-left: 8px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* フォーム */
+  .form .field { margin-bottom: 14px; border: 0; padding: 0; }
+  .form label, .form legend { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .form .req { font-size: 11px; color: var(--st-stop-fg); background: var(--st-stop-bg); border-radius: 3px; padding: 0 5px; margin-left: 6px; font-weight: 700; }
+  .issue-banner {
+    display: block; background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--st-decided-fg);
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-weight: 600; text-decoration: none;
+  }
+  .form input[type="text"], .form input[type="email"], .form input[type="number"], .form input[type="date"], .form input[type="datetime-local"],
+  .form select, .form textarea {
+    width: 100%; font: inherit; font-size: 16px; /* iPhoneで拡大されないよう16px */
+    padding: 8px 10px; min-height: 44px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text);
+  }
+  .form input[type="number"] { max-width: 14em; }
+  .form textarea { min-height: 88px; resize: vertical; }
+  .form .suffix { margin-left: 6px; color: var(--muted); }
+  .form .check-grid { display: grid; grid-template-columns: 1fr; gap: 2px 16px; }
+  @media (min-width: 720px) { .form .check-grid { grid-template-columns: 1fr 1fr; } }
+  .form .check-grid label { font-weight: 400; font-size: 15px; display: flex; gap: 8px; align-items: center; min-height: 36px; margin: 0; }
+  .form .check-grid input { width: 18px; height: 18px; }
+  .form-actions { display: flex; gap: 8px; flex-wrap: wrap; position: sticky; bottom: 0; background: var(--surface); padding: 12px 0 4px; border-top: 1px solid var(--border); }
+  .form-actions .btn { min-width: 7em; min-height: 44px; }
+  .form-error { background: var(--st-stop-bg); color: var(--st-stop-fg); padding: 10px 12px; border-radius: 6px; margin-bottom: 14px; font-weight: 600; }
+  .form-error[hidden] { display: none; }
+
+  .mail-body { white-space: pre-wrap; overflow-wrap: anywhere; border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; font-size: 15px; }
+
+  .ai-card { border-left: 4px solid var(--accent); }
+  .ai-h { font-size: 14px; margin: 12px 0 4px; }
+  .ai-list { margin: 0; padding-left: 1.4em; }
+  .ai-reply { width: 100%; font: inherit; font-size: 15px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); resize: vertical; }
+
+  /* 名刺撮影 */
+  .scan-box { position: relative; width: 100%; max-width: 640px; aspect-ratio: 3 / 4; margin: 0 auto 12px; background: #000; border-radius: 10px; overflow: hidden; }
+  @media (min-width: 720px) { .scan-box { aspect-ratio: 4 / 3; } }
+  .scan-box video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .scan-frame {
+    position: absolute; left: 7%; right: 7%; top: 50%; transform: translateY(-50%); aspect-ratio: 91 / 55;
+    border: 3px solid #fff; border-radius: 10px; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .45);
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .scan-frame span { color: #fff; font-size: 13px; transform: translateY(calc(100% + 10px)); text-shadow: 0 1px 2px #000; }
+  .scan-box img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #111; }
+  .scan-box.captured video, .scan-box.captured .scan-frame { display: none; }
+  .scan-box.no-camera { aspect-ratio: auto; min-height: 160px; background: var(--accent-soft); }
+  .scan-box.no-camera video, .scan-box.no-camera .scan-frame { display: none; }
+  .scan-box.no-camera.captured { aspect-ratio: 91 / 55; background: #111; }
+  .scan-status { position: absolute; left: 12px; right: 12px; bottom: 12px; background: rgba(0, 0, 0, .7); color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 14px; }
+  .scan-box.no-camera .scan-status { position: static; margin: 16px; background: transparent; color: var(--text); padding: 0; }
+  .scan-status[hidden] { display: none; }
+  .scan-status.error-text { background: var(--st-stop-bg); color: var(--st-stop-fg); }
+  .scan-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .scan-actions .btn { min-height: 48px; min-width: 9em; font-size: 16px; }
+  .scan-shutter[hidden] { display: none; }
+
+  /* ===== 読み込み中の骨組み ===== */
+  .skeleton { padding-top: 4px; }
+  .sk { background: linear-gradient(90deg, var(--border) 25%, var(--accent-soft) 50%, var(--border) 75%); background-size: 200% 100%; animation: sk 1.2s infinite; border-radius: 8px; opacity: .6; }
+  .sk-title { height: 26px; width: 40%; margin-bottom: 16px; }
+  .sk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .sk-tile { height: 74px; }
+  .sk-card { height: 120px; margin-bottom: 12px; }
+  @keyframes sk { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  /* ===== メニュー画面 ===== */
+  .menu-list { list-style: none; margin: 0 0 12px; padding: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .menu-list li + li { border-top: 1px solid var(--border); }
+  .menu-list a { display: flex; flex-direction: column; padding: 14px 40px 14px 16px; text-decoration: none; color: var(--text); position: relative; min-height: 56px; justify-content: center; }
+  .menu-list a::after { content: '›'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 22px; }
+  .menu-me { display: flex; flex-direction: column; padding: 14px 16px; }
+  .menu-logout { all: unset; display: block; width: 100%; box-sizing: border-box; padding: 16px; color: #d64545; font-weight: 600; cursor: pointer; text-align: center; }
+  .invite-code { font-size: 28px; font-weight: 700; letter-spacing: .12em; font-variant-numeric: tabular-nums; margin-top: 4px; color: var(--text); }
+  .menu-title { font-weight: 600; }
+  .menu-sub { font-size: 13px; color: var(--muted); }
+
+  /* ===== スマホ用の外枠（PCでは出さない） ===== */
+  .env-pill { display: none; font-size: 11px; font-weight: 700; color: var(--warn-text); background: var(--warn-bg); border-radius: 999px; padding: 1px 8px; margin-left: 8px; vertical-align: 2px; }
+  .bottom-nav, .fab, .filter-toggle { display: none; }
+
+  @media (max-width: 719px) {
+    html { -webkit-text-size-adjust: 100%; }
+    body { -webkit-tap-highlight-color: transparent; padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+    body.focus-mode { padding-bottom: env(safe-area-inset-bottom); }
+
+    .env-banner { display: none; }
+    .env-pill { display: inline-block; }
+    .tabs { display: none; }
+    .app-header { box-shadow: 0 1px 0 var(--border); border-bottom: 0; padding-top: env(safe-area-inset-top); }
+    .app-top { padding: 10px 16px; }
+    .app-title { font-size: 15px; }
+    #sheet-link { display: none; }
+    .view { padding: 14px 16px 24px; }
+    h1 { font-size: 22px; }
+
+    .bottom-nav {
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding-bottom: env(safe-area-inset-bottom);
+      -webkit-user-select: none; user-select: none;
+    }
+    body.focus-mode .bottom-nav, body.focus-mode .fab { display: none; }
+    .bottom-nav a {
+      position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      min-height: 56px; text-decoration: none; color: var(--muted); font-size: 10.5px;
+    }
+    .bottom-nav svg { width: 24px; height: 24px; fill: currentColor; stroke: currentColor; }
+    .bottom-nav a.active { color: var(--accent); font-weight: 700; }
+    .bottom-nav a:active { background: var(--accent-soft); }
+    .nav-badge {
+      position: absolute; top: 5px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+      background: #d64545; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+    }
+    .nav-badge[hidden] { display: none; }
+
+    .fab {
+      display: flex; align-items: center; justify-content: center;
+      position: fixed; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 29;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--accent); color: var(--surface); box-shadow: 0 4px 12px rgba(0, 0, 0, .25);
+    }
+    .fab svg { width: 26px; height: 26px; stroke: currentColor; }
+    .fab:active { transform: scale(.94); }
+
+    /* 一覧はアプリの行らしく：右端に › 、押したときに沈む */
+    .row-card { position: relative; padding-right: 32px; border-radius: 12px; }
+    .row-card::after { content: '›'; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 22px; }
+    .row-card:active, .tile:active, .menu-list a:active, .btn:active { transform: scale(.98); }
+    .card, .tile { border-radius: 12px; }
+
+    .toast { bottom: calc(80px + env(safe-area-inset-bottom)); }
+    body.focus-mode .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
+    .form-actions { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+
+    /* 一覧の上の「＋登録」ボタンは右下の丸ボタンと重なるので隠す */
+    .page-head a[data-go$="/new"], .page-head a[data-go="/scan"] { display: none; }
+
+    /* 絞り込みは「絞り込み」ボタンで開閉する */
+    .filters { grid-template-columns: 1fr auto; }
+    .filters select { display: none; grid-column: 1 / -1; }
+    .filters.open select { display: block; }
+    .filter-toggle { display: inline-flex; }
+    .filter-on { color: var(--accent); border-color: var(--accent); }
+
+    /* 本文中のリンクは下線なしで、アプリのボタン風に */
+    .item a, .meta a, .card a:not(.btn) { text-decoration: none; }
+    .edit-link { font-size: 12px; padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px; }
+  }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 20;
+    background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 8px; font-size: 14px; max-width: calc(100% - 32px);
+  }
+  .toast[hidden] { display: none; }
+</style>
+
+<style>
+  /* ===== PWA：ログイン画面 ===== */
+  .login {
+    position: fixed; inset: 0; z-index: 100; background: var(--bg);
+    display: flex; align-items: center; justify-content: center; padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+  }
+  .login[hidden] { display: none; }
+  .login-box { width: 100%; max-width: 360px; text-align: center; }
+  .login-icon { border-radius: 18px; box-shadow: 0 4px 16px rgba(0, 0, 0, .18); }
+  .login-title { font-size: 22px; margin: 14px 0 2px; }
+  .login-sub { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
+  #login-form { text-align: left; }
+  #login-form label { font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px; }
+  #login-code {
+    width: 100%; font: inherit; font-size: 24px; letter-spacing: .12em; text-align: center; text-transform: uppercase;
+    padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text);
+  }
+  #login-form .btn { width: 100%; min-height: 50px; margin-top: 14px; font-size: 17px; }
+  .login-error { background: var(--st-stop-bg); color: var(--st-stop-fg); border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-size: 14px; }
+  .login-error[hidden] { display: none; }
+  body.logged-out .bottom-nav, body.logged-out .fab { display: none !important; }
+
+  /* ホーム画面から開いたとき（全画面）は、上端の安全領域ぶん下げる */
+  @media (display-mode: standalone) {
+    .app-header { padding-top: env(safe-area-inset-top); }
+  }
+
+  /* 閲覧のみの利用者には、登録・編集の入口を出さない（サーバー側でも止めている） */
+  body.role-viewer .fab, body.role-viewer .edit-link, body.role-viewer [data-go^="/edit/"], body.role-viewer [data-go="/scan"],
+  body.role-viewer .status-change, body.role-viewer [data-action="mail-draft"], body.role-viewer [data-action="mail-status"] { display: none !important; }
+</style>
+
+</head>
+<body>
+<div id="login" class="login" hidden>
+  <div class="login-box">
+    <img src="./icons/icon-192.png" alt="" class="login-icon" width="72" height="72">
+    <h1 class="login-title">ロケツーリズム管理</h1>
+    <p class="login-sub">試作版・架空データのみ</p>
+    <form id="login-form" autocomplete="off">
+      <label for="login-code">招待コード</label>
+      <input id="login-code" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH" maxlength="9" required>
+      <div id="login-error" class="login-error" role="alert" hidden></div>
+      <button type="submit" class="btn btn-primary">ログイン</button>
+    </form>
+    <p class="note">招待コードは管理者から受け取ってください。一度ログインすると、この端末では90日間そのまま使えます。</p>
+  </div>
+</div>
+
+  <div class="env-banner" role="note">試作版・架空データのみ（実在の会社・作品・人物とは関係ありません）</div>
+  <header class="app-header">
+    <div class="app-top">
+      <div class="app-title">ロケツーリズム管理<span class="env-pill" title="試作版・架空データのみ">試作</span></div>
+      <a id="sheet-link" class="btn btn-small" href="#" target="_blank" rel="noopener" title="スプレッドシートを別タブで開く" hidden>シートを開く ↗</a>
+    </div>
+    <nav class="tabs" aria-label="画面の切り替え">
+      <a href="#/" data-tab="dashboard">ダッシュボード</a>
+      <a href="#/inquiries" data-tab="inquiries">問い合わせ</a>
+      <a href="#/projects" data-tab="projects">案件</a>
+      <a href="#/scouts" data-tab="scouts">ロケハン</a>
+      <a href="#/results" data-tab="results">撮影実績</a>
+      <a href="#/contacts" data-tab="contacts">連絡先</a>
+      <a href="#/master" data-tab="master">ロケ地・会社</a>
+    </nav>
+  </header>
+  <main id="view" class="view">
+    <div class="skeleton" aria-label="読み込み中">
+      <div class="sk sk-title"></div>
+      <div class="sk-grid"><div class="sk sk-tile"></div><div class="sk sk-tile"></div><div class="sk sk-tile"></div><div class="sk sk-tile"></div></div>
+      <div class="sk sk-card"></div>
+      <div class="sk sk-card"></div>
+    </div>
+  </main>
+
+  <!-- スマホ用：下のタブバー（PCでは出さない） -->
+  <nav class="bottom-nav" aria-label="メイン">
+    <a href="#" data-nav="home" data-go="/">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+      <span>ホーム</span>
+    </a>
+    <a href="#" data-nav="inquiries" data-go="/inquiries">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v14H3z" fill="none" stroke-width="2"/><path d="m3 6 9 7 9-7" fill="none" stroke-width="2"/></svg>
+      <span>問い合わせ</span><b class="nav-badge" id="nav-badge-inquiries" hidden></b>
+    </a>
+    <a href="#" data-nav="projects" data-go="/projects">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4z" fill="none" stroke-width="2"/><path d="M9 7V4h6v3" fill="none" stroke-width="2"/></svg>
+      <span>案件</span>
+    </a>
+    <a href="#" data-nav="contacts" data-go="/contacts">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke-width="2"/><circle cx="9" cy="11" r="2.2"/><path d="M5.5 16.5c.8-1.8 2-2.6 3.5-2.6s2.7.8 3.5 2.6M14 10h4M14 13h4" fill="none" stroke-width="1.8"/></svg>
+      <span>連絡先</span>
+    </a>
+    <a href="#" data-nav="menu" data-go="/menu">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke-width="2"/></svg>
+      <span>メニュー</span>
+    </a>
+  </nav>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script>window.__LT_API__ = "https://script.google.com/macros/s/AKfycbx5t0vrupbCOCjK2_JlHVbQHF_N5nCSbDn7D4MY1SQkV2MnPsdc0Q2JNqXJ3wyeSV4A/exec";</script>
+<script>
+/**
+ * PWA 用の通信部分とログイン画面。
+ * 画面本体（src/js.html）は google.script.run を呼ぶ作りなので、それを GAS の API（POST）への fetch に置き換える。
+ * ログインしていなければ、呼び出しを待たせてログイン画面を出し、ログインできたら続きを実行する。
+ */
+(function () {
+  'use strict';
+  var API = window.__LT_API__;
+  var TOKEN_KEY = 'lt_session';
+  var queue = [];
+
+  function getToken() { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } }
+  function setToken(t) { try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) { /* 保存できない環境 */ } }
+
+  function post(fn, args) {
+    return fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // 事前確認（CORS）の要らない形で送る
+      body: JSON.stringify({ fn: fn, args: args, token: getToken() }),
+      redirect: 'follow',
+    }).then(function (r) {
+      if (!r.ok) throw new Error('サーバーに接続できませんでした（' + r.status + '）');
+      return r.json();
+    });
+  }
+
+  function call(fn, args, ok, ng) {
+    if (fn !== 'authRedeem' && !getToken()) {
+      queue.push([fn, args, ok, ng]);
+      showLogin();
+      return;
+    }
+    post(fn, args).then(function (res) {
+      if (res.ok) { if (ok) ok(res.result); return; }
+      if (res.code === 'AUTH' && fn !== 'authRedeem') {
+        setToken(null);
+        queue.push([fn, args, ok, ng]);
+        showLogin(res.error);
+        return;
+      }
+      if (ng) ng(new Error(res.error || 'エラーが起きました'));
+    }, function () {
+      if (ng) ng(new Error(navigator.onLine === false ? 'オフラインです。電波のある場所でもう一度お試しください' : '通信できませんでした。少し待ってからもう一度お試しください'));
+    });
+  }
+
+  function runner(ok, ng) {
+    var r = {
+      withSuccessHandler: function (f) { return runner(f, ng); },
+      withFailureHandler: function (f) { return runner(ok, f); },
+    };
+    ['apiBootstrap', 'apiSave', 'apiChangeStatus', 'apiMailStatus', 'apiMailDraft', 'apiReadCard',
+      'authMe', 'authLogout', 'adminIssueInvite', 'adminListUsers', 'adminRevokeUser'].forEach(function (fn) {
+      r[fn] = function () { call(fn, Array.prototype.slice.call(arguments), ok, ng); };
+    });
+    return r;
+  }
+  window.google = { script: { run: runner(null, null) } };
+
+  // ===== ログイン画面 =====
+  function showLogin(message) {
+    var el = document.getElementById('login');
+    if (!el) return;
+    el.hidden = false;
+    document.body.classList.add('logged-out');
+    var err = document.getElementById('login-error');
+    err.textContent = message || '';
+    err.hidden = !message;
+    setTimeout(function () { var i = document.getElementById('login-code'); if (i) i.focus(); }, 50);
+  }
+
+  function hideLogin() {
+    document.getElementById('login').hidden = true;
+    document.body.classList.remove('logged-out');
+  }
+
+  function deviceLabel() {
+    var ua = navigator.userAgent;
+    var os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'その他';
+    var standalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+    return os + (standalone ? '（ホーム画面）' : '（ブラウザ）');
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('login-form');
+    var input = document.getElementById('login-code');
+    input.addEventListener('input', function () {
+      var v = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+      input.value = v.length > 4 ? v.slice(0, 4) + '-' + v.slice(4) : v;
+    });
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = form.querySelector('button');
+      var err = document.getElementById('login-error');
+      btn.disabled = true;
+      btn.textContent = '確認中…';
+      err.hidden = true;
+      call('authRedeem', [input.value, deviceLabel()], function (json) {
+        var res = JSON.parse(json);
+        setToken(res.token);
+        input.value = '';
+        btn.disabled = false;
+        btn.textContent = 'ログイン';
+        hideLogin();
+        var q = queue;
+        queue = [];
+        q.forEach(function (c) { call(c[0], c[1], c[2], c[3]); });
+      }, function (e2) {
+        btn.disabled = false;
+        btn.textContent = 'ログイン';
+        err.textContent = e2.message;
+        err.hidden = false;
+      });
+    });
+  });
+
+  // 画面本体から使う（メニューのログアウト）
+  window.__lt = {
+    logout: function () {
+      var done = function () { setToken(null); location.hash = ''; location.reload(); };
+      call('authLogout', [], done, done);
+    },
+  };
+
+  // オフラインでも画面の骨組みは出せるようにする（データは保存しない）
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () { /* 失敗しても動作は続ける */ }); });
+  }
+})();
+
+</script>
+<script>
+(function () {
+  'use strict';
+
+  // ===== 状態 =====
+  var S = null;              // サーバーから受け取ったデータ一式
+  var IDX = {};              // ID → 行
+  var view = document.getElementById('view');
+  var listState = {
+    inquiries: { q: '', category: '', status: '', assignee: '', sort: 'receivedAt', dir: -1 },
+    projects:  { q: '', genre: '', status: '', assignee: '', sort: 'updatedAt', dir: -1 },
+  };
+  var resultsYear = null;
+
+  // ===== ユーティリティ =====
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function dash(v) { return v === '' || v == null ? '—' : esc(v); }
+  function num(n) { return typeof n === 'number' ? n.toLocaleString('ja-JP') : '—'; }
+  function yen(n) { return typeof n === 'number' ? n.toLocaleString('ja-JP') + '円' : '—'; }
+  function dateOnly(s) { return s ? String(s).slice(0, 10) : ''; }
+  function by(key) { var m = {}; return function (rows) { rows.forEach(function (r) { m[r[key]] = r; }); return m; }; }
+  function group(rows, key) {
+    var m = {};
+    rows.forEach(function (r) { (m[r[key]] = m[r[key]] || []).push(r); });
+    return m;
+  }
+  function uniq(arr) { return arr.filter(function (v, i) { return v && arr.indexOf(v) === i; }); }
+
+  var STATUS_CLASS = {
+    '新規相談': 'st-consult', '内容確認中': 'st-consult', 'ロケ地提案・調整中': 'st-consult', '撮影条件確認中': 'st-consult',
+    '撮影決定': 'st-decided', '撮影準備中': 'st-decided',
+    '撮影実施済み': 'st-shot', '実績確認・公開確認中': 'st-shot',
+    '完了': 'st-done', '保留': 'st-hold', '見送り': 'st-stop', '中止': 'st-stop',
+    // 問い合わせ
+    '新規': 'st-decided', '対応中': 'st-consult', '回答済み': 'st-shot', '対応不要': 'st-hold',
+    // 公開状況
+    '未公開': 'st-consult', '公開予定': 'st-decided', '公開済み': 'st-shot', '公開見送り': 'st-stop', '不明': 'st-hold',
+  };
+  function badge(status) {
+    if (!status) return '<span class="badge st-hold">未設定</span>';
+    return '<span class="badge ' + (STATUS_CLASS[status] || 'st-hold') + '">' + esc(status) + '</span>';
+  }
+
+  var PROJECT_GROUPS = {
+    __active: { label: '進行中（完了・保留・見送り・中止を除く）', list: ['新規相談', '内容確認中', 'ロケ地提案・調整中', '撮影条件確認中', '撮影決定', '撮影準備中', '撮影実施済み', '実績確認・公開確認中'] },
+    __decided: { label: '撮影決定（決定・準備中）', list: ['撮影決定', '撮影準備中'] },
+    __shot: { label: '撮影実施（実施済み以降）', list: ['撮影実施済み', '実績確認・公開確認中', '完了'] },
+  };
+  var INQUIRY_GROUPS = {
+    __open: { label: '未対応（新規・対応中）', list: ['新規', '対応中'] },
+  };
+  function matchStatus(status, filter, groups) {
+    if (!filter) return true;
+    if (groups[filter]) return groups[filter].list.indexOf(status) >= 0;
+    return status === filter;
+  }
+
+  function options(values, selected, allLabel, groups) {
+    var html = '<option value="">' + esc(allLabel) + '</option>';
+    if (groups) {
+      Object.keys(groups).forEach(function (k) {
+        html += '<option value="' + k + '"' + (k === selected ? ' selected' : '') + '>' + esc(groups[k].label) + '</option>';
+      });
+    }
+    values.forEach(function (v) {
+      html += '<option value="' + esc(v) + '"' + (v === selected ? ' selected' : '') + '>' + esc(v) + '</option>';
+    });
+    return html;
+  }
+
+  function compare(a, b, key, dir) {
+    var x = a[key], y = b[key];
+    var ex = x === '' || x == null, ey = y === '' || y == null;
+    if (ex && ey) return 0;
+    if (ex) return 1;          // 空欄は向きにかかわらず最後
+    if (ey) return -1;
+    if (typeof x === 'number' && typeof y === 'number') return (x - y) * dir;
+    return String(x).localeCompare(String(y), 'ja') * dir;
+  }
+
+  function sortHeader(table, key, label, cls) {
+    var st = listState[table];
+    var arrow = st.sort === key ? (st.dir > 0 ? '▲' : '▼') : '';
+    var aria = st.sort === key ? (st.dir > 0 ? 'ascending' : 'descending') : 'none';
+    return '<th class="' + (cls || '') + '" aria-sort="' + aria + '"><button type="button" data-sort="' + table + ':' + key + '">' +
+      esc(label) + '<span class="arrow">' + arrow + '</span></button></th>';
+  }
+
+  // ===== 画面遷移 =====
+  var hasHistory = typeof google !== 'undefined' && google.script && google.script.history;
+
+  function go(route) {
+    if (hasHistory) {
+      google.script.history.push({ route: route }, null, route);
+      render(route);
+    } else if (location.hash !== '#' + route) {
+      location.hash = route;   // hashchange で render
+    } else {
+      render(route);
+    }
+    window.scrollTo(0, 0);
+  }
+
+  function parseRoute(route) {
+    var r = String(route || '/').replace(/^#/, '');
+    if (r.charAt(0) !== '/') r = '/' + r;
+    var q = {};
+    var i = r.indexOf('?');
+    if (i >= 0) {
+      r.slice(i + 1).split('&').forEach(function (kv) {
+        var p = kv.split('=');
+        if (p[0]) q[decodeURIComponent(p[0])] = decodeURIComponent(p[1] || '');
+      });
+      r = r.slice(0, i);
+    }
+    return { parts: r.split('/').filter(Boolean), query: q };
+  }
+
+  function render(route) {
+    if (!S) return;
+    var rt = parseRoute(route);
+    var p = rt.parts;
+    var tab = p[0] || 'dashboard';
+    Array.prototype.forEach.call(document.querySelectorAll('.tabs a'), function (a) {
+      a.classList.toggle('active', a.getAttribute('data-tab') === tab);
+      if (a.getAttribute('data-tab') === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+
+    if (tab === 'edit') {
+      var parent = { inquiries: 'inquiries', projects: 'projects', scouts: 'scouts', contacts: 'contacts', locations: 'master', companies: 'master' }[p[1]] || 'projects';
+      Array.prototype.forEach.call(document.querySelectorAll('.tabs a'), function (a) {
+        a.classList.toggle('active', a.getAttribute('data-tab') === parent);
+      });
+    }
+
+    updateAppShell(tab, p);
+    if (tab !== 'scan') stopCamera();
+    if (tab === 'mail') {
+      Array.prototype.forEach.call(document.querySelectorAll('.tabs a'), function (a) {
+        a.classList.toggle('active', a.getAttribute('data-tab') === 'inquiries');
+      });
+    }
+    if (tab === 'scan') {
+      Array.prototype.forEach.call(document.querySelectorAll('.tabs a'), function (a) {
+        a.classList.toggle('active', a.getAttribute('data-tab') === 'contacts');
+      });
+    }
+
+    try {
+      if (tab === 'menu') return renderMenu();
+      if (tab === 'users') return renderUsers();
+      if (tab === 'mail' && p[1]) return renderMailDetail(p[1]);
+      if (tab === 'mail') return renderMailList(rt.query);
+      if (tab === 'scan') return renderScan();
+      if (tab === 'contacts') return renderContacts();
+      if (tab === 'edit') return renderForm(p[1], p[2] || 'new', rt.query);
+      if (tab === 'master') return renderMaster();
+      if (tab === 'scouts' && p[1]) return renderScoutDetail(p[1]);
+      if (tab === 'scouts') return renderScouts();
+      if (tab === 'inquiries' && p[1]) return renderInquiryDetail(p[1]);
+      if (tab === 'inquiries') { applyQuery('inquiries', rt.query); return renderInquiries(); }
+      if (tab === 'projects' && p[1]) return renderProjectDetail(p[1]);
+      if (tab === 'projects') { applyQuery('projects', rt.query); return renderProjects(); }
+      if (tab === 'results') return renderResults();
+      return renderDashboard();
+    } catch (e) {
+      view.innerHTML = '<div class="error">画面の表示中にエラーが起きました：' + esc(e.message) + '</div>';
+      throw e;
+    }
+  }
+
+  function applyQuery(table, q) {
+    if (!q || Object.keys(q).length === 0) return;
+    var st = listState[table];
+    ['q', 'category', 'genre', 'status', 'assignee'].forEach(function (k) {
+      if (k in st) st[k] = q[k] || '';
+    });
+  }
+
+  // ===== ダッシュボード（仕様 8-1） =====
+  function renderDashboard() {
+    var d = S.stats.dashboard;
+    var newMails = S.data.mailInbox.filter(function (m) { return m.status === '未確認'; }).length;
+    var tiles = [
+      ['新着メール（未確認）', newMails, '件', '/mail', newMails > 0],
+      ['総問い合わせ件数', d.inquiriesTotal, '件', '/inquiries?status=', false],
+      ['新規問い合わせ', d.inquiriesNew, '件', '/inquiries?status=新規', d.inquiriesNew > 0],
+      ['未対応', d.inquiriesOpen, '件', '/inquiries?status=__open', d.inquiriesOpen > 0],
+      ['進行中の案件', d.projectsActive, '件', '/projects?status=__active', false],
+      ['撮影決定', d.projectsDecided, '件', '/projects?status=__decided', false],
+      ['撮影実施', d.projectsShot, '件', '/projects?status=__shot', false],
+      ['完了した案件', d.projectsDone, '件', '/projects?status=完了', false],
+    ];
+    var html = '<h1>ダッシュボード</h1>';
+    if (S.issues && S.issues.length) {
+      html += '<a class="issue-banner" href="#" data-go="/master">シートに確認が必要な行が ' + S.issues.length + ' 件あります（直接編集した行など）→ 確認する</a>';
+    }
+    html += '<div class="tiles">';
+    tiles.forEach(function (t) {
+      html += '<a class="tile' + (t[4] ? ' attention' : '') + '" href="#" data-go="' + esc(t[3]) + '">' +
+        '<div class="label">' + esc(t[0]) + '</div><div class="value">' + num(t[1]) + '<span class="unit">' + t[2] + '</span></div></a>';
+    });
+    html += '</div>';
+
+    // 年度別の撮影実績
+    html += '<section class="card"><h2>年度別の撮影実績</h2><div style="overflow-x:auto"><table><thead><tr>' +
+      '<th>年度</th><th class="num">撮影件数</th><th class="num">撮影日数</th><th class="num">参加人数</th><th class="num">延べ宿泊数</th><th class="num">公開済み</th>' +
+      '</tr></thead><tbody>';
+    S.stats.years.forEach(function (fy) {
+      var r = S.stats.results[fy];
+      html += '<tr data-go="/results" data-year="' + fy + '"><td class="nowrap">' + fy + '年度' + (fy === S.stats.currentFy ? '（今年度）' : '') + '</td>' +
+        '<td class="num">' + num(r.shoots) + '</td><td class="num">' + num(r.days) + '</td><td class="num">' + num(r.participants) + '</td>' +
+        '<td class="num">' + num(r.lodgingNights) + '</td><td class="num">' + num(r.released) + '</td></tr>';
+    });
+    html += '</tbody></table></div><p class="note">年度は4月始まり。撮影件数は撮影実績が登録された案件の数。</p></section>';
+
+    // 直近の予定（ロケハン・撮影）
+    var upcoming = [];
+    S.data.shootPlans.forEach(function (p) {
+      if (!p.shootDate || p.shootDate < S.today) return;
+      var pr = IDX.projects[p.projectId] || {};
+      if (['見送り', '中止'].indexOf(pr.status) >= 0) return;
+      upcoming.push({ date: p.shootDate, kind: '撮影', route: '/projects/' + p.projectId, title: pr.title || p.projectId, time: p.shootTime, places: locationNamesOfPlan(p.id) });
+    });
+    S.data.scouts.forEach(function (s) {
+      if (!s.scoutDate || s.scoutDate < S.today || s.status !== '予定') return;
+      upcoming.push({ date: s.scoutDate, kind: 'ロケハン', route: '/scouts/' + s.id, title: scoutName(s), time: s.scoutTime, places: scoutLocationNames(s.id) });
+    });
+    upcoming.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    upcoming = upcoming.slice(0, 6);
+    html += '<div class="grid-2"><section class="card"><h2>直近の予定（ロケハン・撮影）</h2>';
+    if (upcoming.length === 0) html += '<p class="empty">予定はありません</p>';
+    upcoming.forEach(function (u) {
+      html += '<div class="item"><span class="badge ' + (u.kind === '撮影' ? 'st-decided' : 'st-consult') + '">' + u.kind + '</span> ' +
+        '<a href="#" data-go="' + esc(u.route) + '"><strong>' + esc(u.date) + '</strong> ' + esc(u.title) + '</a>' +
+        '<div class="meta">' + dash(u.time) + '／' + esc(u.places.join('・') || 'ロケ地未定') + '</div></div>';
+    });
+    html += '</section>';
+
+    // 未対応の問い合わせ
+    var open = S.data.inquiries.filter(function (i) { return INQUIRY_GROUPS.__open.list.indexOf(i.status) >= 0; })
+      .sort(function (a, b) { return compare(a, b, 'receivedAt', -1); }).slice(0, 5);
+    html += '<section class="card"><h2>未対応の問い合わせ</h2>';
+    if (open.length === 0) html += '<p class="empty">ありません</p>';
+    open.forEach(function (i) {
+      html += '<div class="item"><a href="#" data-go="/inquiries/' + esc(i.id) + '">' + esc(i.title || '（作品名なし）') + '</a> ' + badge(i.status) +
+        '<div class="meta">' + esc(dateOnly(i.receivedAt)) + '／' + esc(i.companyName) + '／' + esc(i.category) + (i.assignee ? '' : '／<strong>担当未定</strong>') + '</div></div>';
+    });
+    html += '</section></div>';
+
+    view.innerHTML = html;
+  }
+
+  function scoutName(s) {
+    var pr = s.projectId ? IDX.projects[s.projectId] : null;
+    if (s.title) return s.title;
+    return pr ? pr.title + ' ロケハン' : 'ロケハン';
+  }
+  function scoutLocationNames(scoutId) {
+    return (S.groups.scoutLocsByScout[scoutId] || []).map(function (x) {
+      return (IDX.locations[x.locationId] || {}).name || x.locationId;
+    });
+  }
+  var EVAL_CLASS = { '採用候補': 'st-shot', '保留': 'st-decided', '不採用': 'st-stop', '未評価': 'st-hold' };
+  var SCOUT_CLASS = { '予定': 'st-consult', '実施済み': 'st-shot', '中止': 'st-stop' };
+
+  // ===== ロケハン =====
+  function renderScouts() {
+    var rows = S.data.scouts.slice().sort(function (a, b) { return compare(a, b, 'scoutDate', -1); });
+    var html = pageHead('ロケハン', '<a class="btn btn-primary" href="#" data-go="/edit/scouts/new">＋ ロケハンを登録</a>') +
+      '<div class="count">' + rows.length + '件（案件に紐付かないロケハンツアー等も含む）</div><ul class="list">';
+    if (rows.length === 0) html += '<li class="empty">まだ登録されていません</li>';
+    rows.forEach(function (s) {
+      var pr = s.projectId ? IDX.projects[s.projectId] : null;
+      html += '<li><a class="row-card" href="#" data-go="/scouts/' + esc(s.id) + '"><div class="top"><span class="title">' + esc(s.scoutDate) + '　' + esc(scoutName(s)) + '</span>' +
+        '<span class="badge ' + (SCOUT_CLASS[s.status] || 'st-hold') + '">' + esc(s.status) + '</span></div>' +
+        '<div class="meta">' + esc(s.id) + '／' + (pr ? esc(pr.id) + ' ' + esc(pr.title) : '案件なし（単独）') + '／' + dash(s.scoutTime) + '</div>' +
+        '<div class="meta">ロケ地：' + esc(scoutLocationNames(s.id).join('・') || '未定') + '</div></a></li>';
+    });
+    view.innerHTML = html + '</ul>';
+    fab('/edit/scouts/new', 'ロケハンを登録');
+  }
+
+  function renderScoutDetail(id) {
+    var s = S.data.scouts.filter(function (x) { return x.id === id; })[0];
+    if (!s) { view.innerHTML = '<a class="back" href="#" data-go="/scouts">← ロケハン一覧</a><p class="error">ロケハン ' + esc(id) + ' が見つかりません</p>'; return; }
+    var pr = s.projectId ? IDX.projects[s.projectId] : null;
+    var html = '<a class="back" href="#" data-go="' + (pr ? '/projects/' + esc(pr.id) : '/scouts') + '">← ' + (pr ? '案件に戻る' : 'ロケハン一覧') + '</a>' +
+      '<div class="detail-head"><h1>' + esc(scoutName(s)) + '</h1><span class="badge ' + (SCOUT_CLASS[s.status] || 'st-hold') + '">' + esc(s.status) + '</span></div>' +
+      '<div class="sub">' + esc(s.id) + '／' + esc(s.scoutDate) + ' ' + esc(s.scoutTime) + '</div>' +
+      '<div class="actions"><a class="btn" href="#" data-go="/edit/scouts/' + esc(s.id) + '">編集・評価を入力</a></div>' +
+      '<div class="grid-2"><section class="card"><h2>概要</h2><dl class="kv">' +
+      '<dt>案件</dt><dd>' + (pr ? '<a href="#" data-go="/projects/' + esc(pr.id) + '">' + esc(pr.id) + ' ' + esc(pr.title) + '</a>' : '案件なし（単独）') + '</dd>' +
+      '<dt>制作側</dt><dd>' + (typeof s.participantsCount === 'number' ? num(s.participantsCount) + '名　' : '') + dash(s.participants) + '</dd>' +
+      '<dt>窓口側同行</dt><dd>' + dash(s.companions) + '</dd><dt>備考</dt><dd>' + dash(s.note) + '</dd></dl></section>' +
+      '<section class="card"><h2>回るロケ地と評価</h2>' + scoutLocationItems(s.id) + '</section></div>';
+    view.innerHTML = html;
+  }
+
+  function scoutLocationItems(scoutId) {
+    var rows = S.groups.scoutLocsByScout[scoutId] || [];
+    if (rows.length === 0) return '<p class="empty">まだ登録されていません</p>';
+    return rows.map(function (x) {
+      var l = IDX.locations[x.locationId] || { name: x.locationId };
+      return '<div class="item"><strong>' + esc(l.name) + '</strong> <span class="badge ' + (EVAL_CLASS[x.evaluation] || 'st-hold') + '">' + esc(x.evaluation || '未評価') + '</span>' +
+        (x.reaction ? '<div class="meta">先方の反応：' + esc(x.reaction) + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  function locationNamesOfPlan(planId) {
+    return (S.groups.locsByPlan[planId] || []).map(function (pl) {
+      return (IDX.locations[pl.locationId] || {}).name || pl.locationId;
+    });
+  }
+
+  // ===== 問い合わせ一覧（仕様 8-2） =====
+  function renderInquiries() {
+    var st = listState.inquiries;
+    var assignees = uniq(S.data.inquiries.map(function (r) { return r.assignee; })).sort();
+    var unread = S.data.mailInbox.filter(function (m) { return m.status === '未確認'; }).length;
+    var html = pageHead('問い合わせ一覧', '<a class="btn' + (unread ? ' btn-primary' : '') + '" href="#" data-go="/mail">新着メール ' + unread + '件</a> ' +
+      '<a class="btn' + (unread ? '' : ' btn-primary') + '" href="#" data-go="/edit/inquiries/new">＋ 問い合わせを登録</a>') +
+      '<div class="filters" role="search">' +
+      '<input type="search" data-filter="inquiries:q" placeholder="番号・会社・作品名・内容で検索" value="' + esc(st.q) + '" aria-label="キーワード">' +
+      filterToggle(st.category || st.status || st.assignee) +
+      '<select data-filter="inquiries:category" aria-label="問い合わせ分類">' + options(S.enums['問い合わせ分類'], st.category, '分類：すべて') + '</select>' +
+      '<select data-filter="inquiries:status" aria-label="対応ステータス">' + options(S.enums['問い合わせステータス'], st.status, 'ステータス：すべて', INQUIRY_GROUPS) + '</select>' +
+      '<select data-filter="inquiries:assignee" aria-label="担当者">' + options(assignees.concat(['__none']), st.assignee, '担当者：すべて').replace('>__none<', '>担当未定<') + '</select>' +
+      '</div><div id="list-body"></div>';
+    view.innerHTML = html;
+    renderInquiryRows();
+    fab('/edit/inquiries/new', '問い合わせを登録');
+  }
+
+  function renderInquiryRows() {
+    var st = listState.inquiries;
+    var q = st.q.trim().toLowerCase();
+    var rows = S.data.inquiries.filter(function (r) {
+      if (st.category && r.category !== st.category) return false;
+      if (!matchStatus(r.status, st.status, INQUIRY_GROUPS)) return false;
+      if (st.assignee === '__none' ? r.assignee : (st.assignee && r.assignee !== st.assignee)) return false;
+      if (q && [r.id, r.companyName, r.title, r.body, r.contactName, r.projectId].join(' ').toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    }).sort(function (a, b) { return compare(a, b, st.sort, st.dir); });
+
+    var html = '<div class="count">' + rows.length + '件</div>';
+    if (rows.length === 0) { document.getElementById('list-body').innerHTML = html + '<p class="empty">条件に合う問い合わせはありません</p>'; return; }
+
+    html += '<ul class="list responsive">';
+    rows.forEach(function (r) {
+      html += '<li><a class="row-card" href="#" data-go="/inquiries/' + esc(r.id) + '"><div class="top"><span class="title">' + esc(r.title || '（作品名なし）') + '</span>' + badge(r.status) + '</div>' +
+        '<div class="meta">' + esc(r.id) + '／' + esc(dateOnly(r.receivedAt)) + '／' + esc(r.category) + '</div>' +
+        '<div class="meta">' + esc(r.companyName) + '／担当：' + (r.assignee ? esc(r.assignee) : '未定') + '</div></a></li>';
+    });
+    html += '</ul><div class="table-wrap"><table><thead><tr>' +
+      sortHeader('inquiries', 'id', '受付番号') + sortHeader('inquiries', 'receivedAt', '受付日') + sortHeader('inquiries', 'companyName', '制作会社') +
+      sortHeader('inquiries', 'title', '作品名') + sortHeader('inquiries', 'category', '分類') + sortHeader('inquiries', 'status', 'ステータス') +
+      sortHeader('inquiries', 'assignee', '担当者') + '</tr></thead><tbody>';
+    rows.forEach(function (r) {
+      html += '<tr data-go="/inquiries/' + esc(r.id) + '"><td class="nowrap">' + esc(r.id) + '</td><td class="nowrap">' + esc(dateOnly(r.receivedAt)) + '</td>' +
+        '<td>' + esc(r.companyName) + '</td><td>' + esc(r.title) + '</td><td>' + esc(r.category) + '</td><td>' + badge(r.status) + '</td>' +
+        '<td class="nowrap">' + (r.assignee ? esc(r.assignee) : '<span class="badge st-decided">未定</span>') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    document.getElementById('list-body').innerHTML = html;
+  }
+
+  function renderInquiryDetail(id) {
+    var r = IDX.inquiries[id];
+    if (!r) { view.innerHTML = '<a class="back" href="#" data-go="/inquiries">← 問い合わせ一覧</a><p class="error">問い合わせ ' + esc(id) + ' が見つかりません</p>'; return; }
+    var acts = (S.groups.activitiesByInquiry[id] || []).slice().sort(function (a, b) { return compare(a, b, 'actedAt', -1); });
+    var html = '<a class="back" href="#" data-go="/inquiries">← 問い合わせ一覧</a>' +
+      '<div class="detail-head"><h1>' + esc(r.title || '（作品名なし）') + '</h1>' + badge(r.status) + '</div>' +
+      '<div class="sub">' + esc(r.id) + '／受付 ' + esc(r.receivedAt) + '（' + esc(r.channel) + '）</div>' +
+      '<div class="actions">' +
+      '<a class="btn" href="#" data-go="/edit/inquiries/' + esc(r.id) + '">編集</a>' +
+      '<a class="btn" href="#" data-go="' + esc(link('/edit/activities/new', { inquiryId: r.id, projectId: r.projectId })) + '">＋ 対応履歴</a>' +
+      statusChanger('inquiries', r.id, r.status, S.enums['問い合わせステータス']) + '</div>';
+    if (r.projectId) {
+      var pr = IDX.projects[r.projectId];
+      html += '<div class="card">関連案件：<a href="#" data-go="/projects/' + esc(r.projectId) + '">' + esc(r.projectId) + ' ' + esc(pr ? pr.title : '') + '</a> ' + (pr ? badge(pr.status) : '') + '</div>';
+    } else {
+      html += '<div class="next-action"><div class="label">案件未登録</div>まだ案件に紐付いていません。' +
+        '<div class="actions" style="margin:8px 0 0"><a class="btn btn-primary" href="#" data-go="' +
+        esc(link('/edit/projects/new', { _fromInquiryId: r.id, title: r.title, companyId: r.companyId, companyName: r.companyName })) +
+        '">この問い合わせから案件を作成</a><a class="btn" href="#" data-go="/edit/inquiries/' + esc(r.id) + '">既存の案件に紐付ける</a></div></div>';
+    }
+    html += '<div class="grid-2"><section class="card"><h2>問い合わせ内容</h2><dl class="kv">' +
+      '<dt>分類</dt><dd>' + dash(r.category) + '</dd><dt>内容</dt><dd style="white-space:pre-wrap">' + dash(r.body) + '</dd>' +
+      '<dt>対応担当</dt><dd>' + (r.assignee ? esc(r.assignee) : '未定') + '</dd></dl></section>' +
+      '<section class="card"><h2>先方</h2><dl class="kv"><dt>制作会社</dt><dd>' + dash(r.companyName) + '</dd><dt>担当者</dt><dd>' + dash(r.contactName) + '</dd>' +
+      '<dt>メール</dt><dd>' + dash(r.email) + '</dd></dl></section></div>' +
+      '<section class="card"><h2>この問い合わせへの対応</h2>' + activityItems(acts) + '</section>';
+    view.innerHTML = html;
+  }
+
+  // ===== 案件一覧（仕様 8-3） =====
+  function renderProjects() {
+    var st = listState.projects;
+    var assignees = uniq(S.data.projects.map(function (r) { return r.assignee; })).sort();
+    var html = pageHead('案件一覧', '<a class="btn btn-primary" href="#" data-go="/edit/projects/new">＋ 案件を登録</a>') +
+      '<div class="filters" role="search">' +
+      '<input type="search" data-filter="projects:q" placeholder="番号・作品名・会社・概要で検索" value="' + esc(st.q) + '" aria-label="キーワード">' +
+      filterToggle(st.genre || st.status || st.assignee) +
+      '<select data-filter="projects:genre" aria-label="ジャンル">' + options(S.enums['作品ジャンル'], st.genre, 'ジャンル：すべて') + '</select>' +
+      '<select data-filter="projects:status" aria-label="進捗状況">' + options(S.enums['案件ステータス'], st.status, '進捗：すべて', PROJECT_GROUPS) + '</select>' +
+      '<select data-filter="projects:assignee" aria-label="担当者">' + options(assignees, st.assignee, '担当者：すべて') + '</select>' +
+      '</div><div id="list-body"></div>';
+    view.innerHTML = html;
+    renderProjectRows();
+    fab('/edit/projects/new', '案件を登録');
+  }
+
+  function renderProjectRows() {
+    var st = listState.projects;
+    var q = st.q.trim().toLowerCase();
+    var rows = S.data.projects.filter(function (r) {
+      if (st.genre && r.genre !== st.genre) return false;
+      if (!matchStatus(r.status, st.status, PROJECT_GROUPS)) return false;
+      if (st.assignee && r.assignee !== st.assignee) return false;
+      if (q && [r.id, r.title, r.companyName, r.summary].join(' ').toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    }).sort(function (a, b) { return compare(a, b, st.sort, st.dir); });
+
+    var html = '<div class="count">' + rows.length + '件</div>';
+    if (rows.length === 0) { document.getElementById('list-body').innerHTML = html + '<p class="empty">条件に合う案件はありません</p>'; return; }
+
+    html += '<ul class="list responsive">';
+    rows.forEach(function (r) {
+      html += '<li><a class="row-card" href="#" data-go="/projects/' + esc(r.id) + '"><div class="top"><span class="title">' + esc(r.title) + '</span>' + badge(r.status) + '</div>' +
+        '<div class="meta">' + esc(r.id) + '／' + esc(r.genre) + '／撮影 ' + esc(period(r)) + '</div>' +
+        '<div class="meta">' + esc(r.companyName) + '／担当：' + dash(r.assignee) + '</div></a></li>';
+    });
+    html += '</ul><div class="table-wrap"><table><thead><tr>' +
+      sortHeader('projects', 'id', '案件番号') + sortHeader('projects', 'title', '作品名') + sortHeader('projects', 'companyName', '制作会社') +
+      sortHeader('projects', 'genre', 'ジャンル') + sortHeader('projects', 'status', '進捗状況') + sortHeader('projects', 'shootStart', '撮影予定日') +
+      sortHeader('projects', 'assignee', '担当者') + '</tr></thead><tbody>';
+    rows.forEach(function (r) {
+      html += '<tr data-go="/projects/' + esc(r.id) + '"><td class="nowrap">' + esc(r.id) + '</td><td>' + esc(r.title) + '</td><td>' + esc(r.companyName) + '</td>' +
+        '<td>' + esc(r.genre) + '</td><td>' + badge(r.status) + '</td><td class="nowrap">' + esc(period(r)) + '</td><td class="nowrap">' + dash(r.assignee) + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    document.getElementById('list-body').innerHTML = html;
+  }
+
+  function period(r) {
+    if (!r.shootStart) return '未定';
+    if (!r.shootEnd || r.shootEnd === r.shootStart) return r.shootStart;
+    return r.shootStart + '〜' + r.shootEnd.slice(5);
+  }
+
+  // ===== 案件詳細（仕様 8-4） =====
+  function renderProjectDetail(id) {
+    var p = IDX.projects[id];
+    if (!p) { view.innerHTML = '<a class="back" href="#" data-go="/projects">← 案件一覧</a><p class="error">案件 ' + esc(id) + ' が見つかりません</p>'; return; }
+    var G = S.groups;
+    var inquiries = (G.inquiriesByProject[id] || []).slice().sort(function (a, b) { return compare(a, b, 'receivedAt', -1); });
+    var acts = (G.activitiesByProject[id] || []).slice().sort(function (a, b) { return compare(a, b, 'actedAt', -1); });
+    var plans = (G.plansByProject[id] || []).slice().sort(function (a, b) { return compare(a, b, 'shootDate', 1); });
+    var results = (G.resultsByProject[id] || []).slice().sort(function (a, b) { return compare(a, b, 'shootDate', 1); });
+    var history = (G.historyByTarget[id] || []).slice().sort(function (a, b) { return compare(a, b, 'changedAt', -1); });
+    var company = IDX.companies[p.companyId];
+
+    var locIds = [];
+    plans.forEach(function (pl) { (G.locsByPlan[pl.id] || []).forEach(function (x) { locIds.push(x.locationId); }); });
+    results.forEach(function (r) { if (r.locationId) locIds.push(r.locationId); });
+    locIds = uniq(locIds);
+
+    var next = acts.length ? acts[0] : null;
+
+    var html = '<a class="back" href="#" data-go="/projects">← 案件一覧</a>' +
+      '<div class="detail-head"><h1>' + esc(p.title) + '</h1>' + badge(p.status) + '</div>' +
+      '<div class="sub">' + esc(p.id) + '／' + esc(p.genre) + '／担当：' + dash(p.assignee) + '／更新 ' + esc(p.updatedAt) + '</div>' +
+      '<div class="actions"><a class="btn" href="#" data-go="/edit/projects/' + esc(p.id) + '">編集</a>' +
+      statusChanger('projects', p.id, p.status, S.enums['案件ステータス']) + '</div>';
+
+    html += '<div class="next-action"><div class="label">次回対応事項</div>' +
+      (next && next.nextAction ? esc(next.nextAction) + '<div class="meta" style="font-size:12px">（' + esc(dateOnly(next.actedAt)) + ' の対応履歴より）</div>' : 'なし') + '</div>';
+
+    html += '<div class="grid-2"><section class="card"><h2>作品情報</h2><dl class="kv">' +
+      '<dt>作品名</dt><dd>' + dash(p.title) + '</dd><dt>ジャンル</dt><dd>' + dash(p.genre) + '</dd>' +
+      '<dt>概要</dt><dd>' + dash(p.summary) + '</dd><dt>撮影予定</dt><dd>' + esc(period(p)) + '</dd>' +
+      '<dt>予定人数</dt><dd>' + (typeof p.headcount === 'number' ? num(p.headcount) + '名' : '—') + '</dd></dl></section>';
+    html += '<section class="card"><h2>制作会社情報</h2><dl class="kv">' +
+      '<dt>会社名</dt><dd>' + dash(company ? company.name : p.companyName) + '</dd>' +
+      '<dt>主担当者</dt><dd>' + dash(company && company.contactName) + '</dd>' +
+      '<dt>メール</dt><dd>' + dash(company && company.email) + '</dd>' +
+      '<dt>電話</dt><dd>' + dash(company && company.phone) + '</dd>' +
+      (company ? '' : '<dt></dt><dd class="note">制作会社マスタに未登録</dd>') + '</dl>' +
+      (function () {
+        var people = S.data.contacts.filter(function (c) {
+          return p.companyId ? c.companyId === p.companyId : (p.companyName && c.companyName === p.companyName);
+        });
+        return '<div class="sec-head" style="margin-top:12px"><h2 style="font-size:14px">担当者（' + people.length + '人）</h2>' +
+          '<a class="btn btn-small" href="#" data-go="/scan">名刺を撮る</a></div>' +
+          (people.length ? people.map(function (c) { return contactItem(c, false); }).join('') : '<p class="empty" style="margin:0">登録されていません</p>');
+      })() + '</section></div>';
+
+    html += '<section class="card">' + secHead('問い合わせ（' + inquiries.length + '件）',
+      link('/edit/inquiries/new', { projectId: p.id, title: p.title, companyId: p.companyId, companyName: p.companyName }));
+    if (inquiries.length === 0) html += '<p class="empty">ありません</p>';
+    inquiries.forEach(function (i) {
+      html += '<div class="item"><a href="#" data-go="/inquiries/' + esc(i.id) + '">' + esc(i.id) + '</a> ' + badge(i.status) +
+        '<div class="meta">' + esc(dateOnly(i.receivedAt)) + '／' + esc(i.channel) + '／' + esc(i.category) + '</div><div class="body">' + esc(i.body) + '</div></div>';
+    });
+    html += '</section>';
+
+    html += '<section class="card">' + secHead('対応履歴（' + acts.length + '件）', link('/edit/activities/new', { projectId: p.id })) + activityItems(acts) + '</section>';
+
+    var scouts = (G.scoutsByProject[id] || []).slice().sort(function (a, b) { return compare(a, b, 'scoutDate', 1); });
+    html += '<section class="card">' + secHead('ロケハン（' + scouts.length + '件）', link('/edit/scouts/new', { projectId: p.id }));
+    if (scouts.length === 0) html += '<p class="empty">ありません</p>';
+    scouts.forEach(function (s) {
+      html += '<div class="item">' + editLink('scouts', s.id) + '<a href="#" data-go="/scouts/' + esc(s.id) + '"><strong>' + esc(s.scoutDate) + '</strong> ' + dash(s.scoutTime) + '</a> ' +
+        '<span class="badge ' + (SCOUT_CLASS[s.status] || 'st-hold') + '">' + esc(s.status) + '</span><div>' +
+        (G.scoutLocsByScout[s.id] || []).map(function (x) {
+          return '<span class="chip">' + esc((IDX.locations[x.locationId] || {}).name || x.locationId) + (x.evaluation && x.evaluation !== '未評価' ? '：' + esc(x.evaluation) : '') + '</span>';
+        }).join('') + '</div></div>';
+    });
+    html += '</section>';
+
+    html += '<div class="grid-2"><section class="card">' + secHead('撮影計画（' + plans.length + '件）', link('/edit/shootPlans/new', { projectId: p.id, shootDate: p.shootStart, headcount: p.headcount }));
+    if (plans.length === 0) html += '<p class="empty">ありません</p>';
+    plans.forEach(function (pl) {
+      html += '<div class="item">' + editLink('shootPlans', pl.id) + '<strong>' + dash(pl.shootDate) + '</strong> ' + dash(pl.shootTime) +
+        (typeof pl.headcount === 'number' ? '／' + num(pl.headcount) + '名' : '') + '<div>' +
+        locationNamesOfPlan(pl.id).map(function (n) { return '<span class="chip">' + esc(n) + '</span>'; }).join('') + '</div>' +
+        (pl.conditions ? '<div class="meta">条件：' + esc(pl.conditions) + '</div>' : '') +
+        (pl.note ? '<div class="meta">備考：' + esc(pl.note) + '</div>' : '') + '</div>';
+    });
+    html += '</section><section class="card"><h2>ロケ地情報（' + locIds.length + 'か所）</h2>';
+    if (locIds.length === 0) html += '<p class="empty">ありません</p>';
+    locIds.forEach(function (lid) {
+      var l = IDX.locations[lid] || { name: lid };
+      html += '<div class="item"><strong>' + esc(l.name) + '</strong> <span class="chip">' + dash(l.category) + '</span>' +
+        '<div class="meta">' + dash(l.address) + '／' + dash(l.contact) + '</div>' +
+        (l.conditions ? '<div class="meta">撮影条件：' + esc(l.conditions) + '</div>' : '') + '</div>';
+    });
+    html += '</section></div>';
+
+    html += '<section class="card">' + secHead('撮影実績（' + results.length + '件）', link('/edit/results/new', { projectId: p.id, shootDate: p.shootStart }));
+    if (results.length === 0) html += '<p class="empty">まだ登録されていません</p>';
+    results.forEach(function (r) {
+      html += '<div class="item">' + editLink('results', r.id) + '<strong>' + dash(r.shootDate) + '</strong> ' + esc(r.place) + ' ' + badge(r.releaseStatus) +
+        '<dl class="kv" style="margin-top:6px"><dt>撮影日数</dt><dd>' + num(r.days) + '日</dd><dt>参加人数</dt><dd>' + num(r.participants) + '名</dd>' +
+        '<dt>宿泊</dt><dd>' + num(r.lodgers) + '名／延べ' + num(r.lodgingNights) + '泊</dd><dt>ロケ弁</dt><dd>' + num(r.bentoCount) + '食</dd>' +
+        '<dt>公開日</dt><dd>' + dash(r.releaseDate) + '</dd><dt>経済効果</dt><dd>' + yen(r.economicEffect) + '（' + dash(r.figureType) + '）</dd>' +
+        '<dt>根拠</dt><dd>' + dash(r.figureBasis) + '</dd></dl></div>';
+    });
+    html += '</section>';
+
+    html += '<section class="card"><h2>ステータスの変更履歴</h2>';
+    if (history.length === 0) html += '<p class="empty">記録はありません</p>';
+    else {
+      html += '<ul class="timeline">';
+      history.forEach(function (h) {
+        html += '<li><span class="nowrap">' + esc(h.changedAt) + '</span>　' + esc(h.fromStatus || '（なし）') + ' → <strong>' + esc(h.toStatus) + '</strong>　<span class="meta">' + esc(h.changedBy) + '</span></li>';
+      });
+      html += '</ul>';
+    }
+    html += '</section>';
+
+    view.innerHTML = html;
+  }
+
+  function activityItems(acts) {
+    if (acts.length === 0) return '<p class="empty">ありません</p>';
+    return acts.map(function (a) {
+      return '<div class="item">' + editLink('activities', a.id) + '<div class="meta">' + esc(a.actedAt) + '／' + esc(a.method) + '／' + esc(a.assignee) +
+        (a.inquiryId ? '／<a href="#" data-go="/inquiries/' + esc(a.inquiryId) + '">' + esc(a.inquiryId) + '</a>' : '') + '</div>' +
+        '<div class="body">' + esc(a.content) + '</div>' +
+        (a.nextAction ? '<div class="meta">次回：' + esc(a.nextAction) + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  // ===== 撮影実績（仕様 8-5） =====
+  function renderResults() {
+    if (resultsYear == null) resultsYear = 'all';
+    var keys = ['all'].concat(S.stats.years.map(String));
+    if (keys.indexOf(String(resultsYear)) < 0) resultsYear = 'all';
+    var r = S.stats.results[resultsYear];
+
+    var html = '<h1>撮影実績</h1><div class="year-select" role="group" aria-label="年度">';
+    keys.forEach(function (k) {
+      html += '<button type="button" data-year="' + k + '" aria-pressed="' + (String(resultsYear) === k) + '">' + (k === 'all' ? '全期間' : k + '年度') + '</button>';
+    });
+    html += '</div>';
+
+    var tiles = [
+      ['撮影件数', r.shoots, '件'], ['撮影日数', r.days, '日'], ['参加人数', r.participants, '名'], ['公開済み作品', r.released, '作品'],
+      ['宿泊人数', r.lodgers, '名'], ['延べ宿泊数', r.lodgingNights, '泊'], ['ロケ弁', r.bento, '食'],
+    ];
+    html += '<div class="tiles">';
+    tiles.forEach(function (t) {
+      html += '<div class="tile"><div class="label">' + t[0] + '</div><div class="value">' + num(t[1]) + '<span class="unit">' + t[2] + '</span></div></div>';
+    });
+    html += '<div class="tile"><div class="label">経済効果</div><div class="value" style="font-size:18px">実測 ' + yen(r.effectMeasured) + '</div>' +
+      '<div class="label">推計 ' + yen(r.effectEstimated) + (r.effectMissing ? '／未取得 ' + r.effectMissing + '件' : '') + '</div></div>';
+    html += '</div>';
+
+    html += '<div class="grid-2"><section class="card"><h2>ジャンル別の撮影件数</h2>' + bars(r.byGenre) + '</section>' +
+      '<section class="card"><h2>ロケ地別の撮影件数</h2>' + bars(r.byLocation) +
+      '<p class="note">1つの案件で複数のロケ地を使った場合は、それぞれに1件ずつ数える。</p></section></div>';
+
+    var rows = S.data.results.filter(function (x) { return resultsYear === 'all' || fyOf(x.shootDate) === Number(resultsYear); })
+      .sort(function (a, b) { return compare(a, b, 'shootDate', -1); });
+    html += '<section class="card"><h2>実績の明細（' + rows.length + '件）</h2>';
+    if (rows.length === 0) html += '<p class="empty">この年度の実績はありません</p>';
+    else {
+      html += '<div style="overflow-x:auto"><table><thead><tr><th>撮影日</th><th>作品名</th><th class="num">日数</th><th class="num">参加</th><th class="num">延べ宿泊</th><th>公開状況</th><th class="num">経済効果</th><th>区分</th></tr></thead><tbody>';
+      rows.forEach(function (x) {
+        var pr = IDX.projects[x.projectId] || {};
+        html += '<tr data-go="/projects/' + esc(x.projectId) + '"><td class="nowrap">' + esc(x.shootDate) + '</td><td>' + esc(pr.title || x.projectId) + '</td>' +
+          '<td class="num">' + num(x.days) + '</td><td class="num">' + num(x.participants) + '</td><td class="num">' + num(x.lodgingNights) + '</td>' +
+          '<td class="nowrap">' + dash(x.releaseStatus) + '</td><td class="num nowrap">' + yen(x.economicEffect) + '</td><td class="nowrap">' + dash(x.figureType) + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '<p class="note">経済効果は「実測」と「推計」を分けて合計し、「未取得」は合計に含めない。</p></section>';
+
+    view.innerHTML = html;
+  }
+
+  function fyOf(s) {
+    var m = /^(\d{4})[\/-](\d{1,2})/.exec(String(s || ''));
+    if (!m) return null;
+    return Number(m[2]) >= 4 ? Number(m[1]) : Number(m[1]) - 1;
+  }
+
+  function bars(list) {
+    if (!list.length) return '<p class="empty">データがありません</p>';
+    var max = Math.max.apply(null, list.map(function (x) { return x.count; }));
+    return '<ul class="bars">' + list.map(function (x) {
+      return '<li><span>' + esc(x.name) + '</span><span class="bar" style="width:' + Math.round(x.count / max * 100) + '%"></span><span class="n">' + x.count + '</span></li>';
+    }).join('') + '</ul>';
+  }
+
+  // ===== 共通の部品 =====
+  /** スマホで絞り込みの選択欄を開閉するボタン（PCでは出さない）。絞り込み中なら印を付ける */
+  function filterToggle(active) {
+    return '<button type="button" class="btn filter-toggle' + (active ? ' filter-on' : '') + '" data-action="toggle-filters" aria-expanded="false">絞り込み' + (active ? '●' : '') + '</button>';
+  }
+  function pageHead(title, buttons) {
+    return '<div class="page-head"><h1>' + esc(title) + '</h1><div>' + (buttons || '') + '</div></div>';
+  }
+  function secHead(title, addRoute) {
+    return '<div class="sec-head"><h2>' + esc(title) + '</h2>' +
+      (addRoute ? '<a class="btn btn-small" href="#" data-go="' + esc(addRoute) + '">＋ 追加</a>' : '') + '</div>';
+  }
+  function editLink(table, id) {
+    // 番号が重複している行は、どちらの行を開くか決められないので編集リンクを出さない（データ点検で知らせる）
+    if (S.data[table] && S.data[table].filter(function (r) { return r.id === id; }).length !== 1) {
+      return '<span class="edit-link note" style="margin:0">番号重複のため編集不可</span>';
+    }
+    return '<a class="edit-link" href="#" data-go="/edit/' + table + '/' + esc(id) + '" aria-label="' + esc(id) + ' を編集">編集</a>';
+  }
+  /** パスと値から画面遷移先を作る。空の値は付けない */
+  function link(path, params) {
+    var q = Object.keys(params || {}).filter(function (k) {
+      return params[k] !== '' && params[k] != null;
+    }).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); });
+    return q.length ? path + '?' + q.join('&') : path;
+  }
+  function statusChanger(table, id, current, list) {
+    return '<span class="status-change"><label for="status-select" class="sr-only">ステータス</label>' +
+      '<select id="status-select">' + list.map(function (s) {
+        return '<option value="' + esc(s) + '"' + (s === current ? ' selected' : '') + '>' + esc(s) + '</option>';
+      }).join('') + '</select><button type="button" class="btn" data-action="change-status" data-table="' + table + '" data-id="' + esc(id) + '">ステータス変更</button></span>';
+  }
+
+  var toastTimer = null;
+  function toast(msg) {
+    var el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.hidden = true; }, 3000);
+  }
+
+  // ===== スマホ用の外枠（下のタブバー・右下ボタン・メニュー） =====
+  var NAV_OF = {
+    dashboard: 'home', inquiries: 'inquiries', mail: 'inquiries', projects: 'projects',
+    contacts: 'contacts', scan: 'contacts', scouts: 'menu', results: 'menu', master: 'menu', menu: 'menu', users: 'menu',
+  };
+  var EDIT_NAV_OF = { inquiries: 'inquiries', activities: 'projects', projects: 'projects', scouts: 'menu', shootPlans: 'projects', results: 'projects', contacts: 'contacts', locations: 'menu', companies: 'menu' };
+
+  function updateAppShell(tab, p) {
+    var nav = tab === 'edit' ? (EDIT_NAV_OF[p[1]] || 'home') : (NAV_OF[tab] || 'home');
+    Array.prototype.forEach.call(document.querySelectorAll('.bottom-nav a'), function (a) {
+      var on = a.getAttribute('data-nav') === nav;
+      a.classList.toggle('active', on);
+      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+    // 入力・撮影の画面では下のタブバーを隠して、作業に集中できるようにする
+    document.body.classList.toggle('focus-mode', tab === 'edit' || tab === 'scan');
+    var badge = document.getElementById('nav-badge-inquiries');
+    if (badge && S) {
+      var n = S.data.mailInbox.filter(function (m) { return m.status === '未確認'; }).length + S.stats.dashboard.inquiriesNew;
+      badge.textContent = n > 99 ? '99+' : String(n);
+      badge.hidden = n === 0;
+    }
+    var old = document.getElementById('fab');
+    if (old) old.remove();
+  }
+
+  /** 右下の丸ボタン（スマホだけ表示）。一覧画面から1タップで登録・撮影できるようにする */
+  function fab(route, label, icon) {
+    var a = document.createElement('a');
+    a.id = 'fab';
+    a.className = 'fab';
+    a.href = '#';
+    a.setAttribute('data-go', route);
+    a.setAttribute('aria-label', label);
+    a.innerHTML = icon === 'camera'
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke-width="2"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke-width="2.4"/></svg>';
+    document.body.appendChild(a);
+  }
+
+  function renderMenu() {
+    var unread = S.data.mailInbox.filter(function (m) { return m.status === '未確認'; }).length;
+    var issues = (S.issues || []).length;
+    var items = [
+      ['/mail', '新着メール', unread ? unread + '件 未確認' : '未確認なし'],
+      ['/scouts', 'ロケハン', S.data.scouts.filter(function (s) { return s.status === '予定'; }).length + '件 予定'],
+      ['/results', '撮影実績', '年度別の集計'],
+      ['/master', 'ロケ地・制作会社', 'マスタとデータ点検' + (issues ? '（要確認 ' + issues + '件）' : '')],
+    ];
+    var html = '<h1>メニュー</h1><ul class="menu-list">';
+    items.forEach(function (it) {
+      html += '<li><a href="#" data-go="' + esc(it[0]) + '"><span class="menu-title">' + esc(it[1]) + '</span><span class="menu-sub">' + esc(it[2]) + '</span></a></li>';
+    });
+    if (S.sheetUrl) html += '<li><a href="' + esc(S.sheetUrl) + '" target="_blank" rel="noopener"><span class="menu-title">スプレッドシートを開く ↗</span><span class="menu-sub">元データを直接見る・編集する</span></a></li>';
+    if (S.me && S.me.role === 'admin') html += '<li><a href="#" data-go="/users"><span class="menu-title">利用者の管理</span><span class="menu-sub">招待コードの発行・取り消し</span></a></li>';
+    html += '</ul>';
+    if (S.me) {
+      html += '<ul class="menu-list"><li><div class="menu-me"><span class="menu-title">' + esc(S.me.name || S.me.email) + '</span>' +
+        '<span class="menu-sub">' + esc(S.me.email) + '／' + esc(ROLE_LABEL[S.me.role] || S.me.role) + '</span></div></li>' +
+        (window.__lt ? '<li><button type="button" class="menu-logout" data-action="logout">ログアウト</button></li>' : '') + '</ul>';
+    }
+    html += '<p class="note">試作版・架空データのみ（実在の会社・作品・人物とは関係ありません）。</p>';
+    view.innerHTML = html;
+  }
+
+  var ROLE_LABEL = { admin: '管理者', editor: '編集者', viewer: '閲覧のみ' };
+
+  // ===== 利用者の管理（管理者だけ） =====
+  function renderUsers() {
+    if (!S.me || S.me.role !== 'admin') { view.innerHTML = '<p class="error">この画面は管理者だけが使えます</p>'; return; }
+    view.innerHTML = '<a class="back" href="#" data-go="/menu">← メニュー</a><h1>利用者の管理</h1>' +
+      '<section class="card"><h2>招待コードを発行</h2>' +
+      '<form id="invite-form" class="form" novalidate>' +
+      '<div class="field"><label for="inv-email">メールアドレス<span class="req">必須</span></label><input type="email" id="inv-email" inputmode="email" autocomplete="off" placeholder="name@example.com"></div>' +
+      '<div class="field"><label for="inv-name">表示名</label><input type="text" id="inv-name" placeholder="例：企画政策課 〇〇"></div>' +
+      '<div class="field"><label for="inv-role">役割</label><select id="inv-role"><option value="editor">編集者（登録・編集ができる）</option><option value="viewer">閲覧のみ</option><option value="admin">管理者（利用者の管理もできる）</option></select></div>' +
+      '<div class="form-error" id="form-error" role="alert" hidden></div>' +
+      '<button type="submit" class="btn btn-primary">発行する</button></form>' +
+      '<div id="invite-result"></div>' +
+      '<p class="note">コードは7日間・1回だけ使えます。LINEや口頭など、本人にだけ伝わる方法で渡してください。同じ人に出し直すと、前のコードは使えなくなります。</p></section>' +
+      '<section class="card"><h2>利用者</h2><div id="user-list"><p class="loading">読み込み中…</p></div></section>';
+    document.getElementById('invite-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = e.target.querySelector('button');
+      btn.disabled = true;
+      callRaw('adminIssueInvite', [document.getElementById('inv-email').value, document.getElementById('inv-role').value, document.getElementById('inv-name').value], function (json) {
+        var r = JSON.parse(json);
+        btn.disabled = false;
+        document.getElementById('form-error').hidden = true;
+        document.getElementById('invite-result').innerHTML = '<div class="next-action" style="margin:12px 0 0"><div class="label">' + esc(r.email) + '（' + esc(ROLE_LABEL[r.role]) + '）の招待コード</div>' +
+          '<div class="invite-code" id="invite-code">' + esc(r.code) + '</div><div class="actions" style="margin:6px 0 0"><button type="button" class="btn btn-small" data-action="copy-invite">コピー</button></div>' +
+          '<div class="note" style="margin-top:4px">この画面を閉じるとコードは再表示できません（出し直しはできます）。</div></div>';
+        loadUserList();
+      }, function (msg) {
+        btn.disabled = false;
+        showFormError(msg);
+      });
+    });
+    loadUserList();
+  }
+
+  function loadUserList() {
+    callRaw('adminListUsers', [], function (json) {
+      var users = JSON.parse(json);
+      var el = document.getElementById('user-list');
+      if (!el) return;
+      el.innerHTML = users.map(function (u) {
+        return '<div class="item"><strong>' + esc(u.name || u.email) + '</strong> <span class="chip">' + esc(ROLE_LABEL[u.role] || '招待中') + '</span>' +
+          (u.self ? ' <span class="chip">自分</span>' : '') +
+          '<div class="meta">' + esc(u.email) + '／ログイン中の端末 ' + u.devices + '台' + (u.invitePending ? '／未使用の招待コードあり' : '') + '</div>' +
+          (u.self ? '' : '<div class="actions" style="margin:6px 0 0"><button type="button" class="btn btn-small" data-action="revoke-user" data-email="' + esc(u.email) + '">取り消す</button></div>') + '</div>';
+      }).join('') || '<p class="empty">いません</p>';
+    }, function (msg) {
+      var el = document.getElementById('user-list');
+      if (el) el.innerHTML = '<p class="error">' + esc(msg) + '</p>';
+    });
+  }
+
+  // ===== 新着メール（Phase 7-1：受信箱） =====
+  var MAIL_CLASS = { '未確認': 'st-decided', '問い合わせ登録済み': 'st-shot', '対応履歴に追加済み': 'st-shot', '対象外': 'st-hold' };
+
+  function mailBadge(s) { return '<span class="badge ' + (MAIL_CLASS[s] || 'st-hold') + '">' + esc(s) + '</span>'; }
+
+  function renderMailList(query) {
+    var showAll = query && query.all === '1';
+    var rows = S.data.mailInbox.filter(function (m) { return showAll || m.status === '未確認'; })
+      .sort(function (a, b) { return compare(a, b, 'receivedAt', -1); });
+    var html = '<a class="back" href="#" data-go="/inquiries">← 問い合わせ一覧</a>' +
+      pageHead('新着メール', '<a class="btn btn-small" href="#" data-go="' + (showAll ? '/mail' : '/mail?all=1') + '">' + (showAll ? '未確認だけ表示' : 'すべて表示') + '</a>') +
+      '<p class="note" style="margin-top:0">窓口アドレスに届いたメールです。1件ずつ確認して、問い合わせとして登録するか、既存案件の対応履歴にするか、対象外にしてください。</p>' +
+      '<div class="count">' + rows.length + '件</div><ul class="list">';
+    if (!rows.length) html += '<li class="empty">' + (showAll ? 'メールはありません' : '未確認のメールはありません') + '</li>';
+    rows.forEach(function (m) {
+      html += '<li><a class="row-card" href="#" data-go="/mail/' + esc(m.id) + '"><div class="top"><span class="title">' + esc(m.subject || '（件名なし）') + '</span>' + mailBadge(m.status) + '</div>' +
+        '<div class="meta">' + esc(m.receivedAt) + '／' + esc(m.fromName || m.fromEmail) + (m.attachments ? '／添付あり' : '') + '</div>' +
+        '<div class="meta">' + esc(String(m.body || '').replace(/\s+/g, ' ').slice(0, 80)) + '</div></a></li>';
+    });
+    view.innerHTML = html + '</ul>';
+  }
+
+  /** 同じスレッドのメールが過去に登録されていれば、その案件・問い合わせを候補として返す */
+  function mailCandidates(m) {
+    var out = { projectId: '', inquiryId: '', reason: '' };
+    S.data.mailInbox.forEach(function (x) {
+      if (x.id === m.id || !m.threadId || x.threadId !== m.threadId || !x.targetId) return;
+      var inq = IDX.inquiries[x.targetId];
+      var act = S.data.activities.filter(function (a) { return a.id === x.targetId; })[0];
+      if (inq) { out.inquiryId = inq.id; out.projectId = inq.projectId || out.projectId; out.reason = '同じやり取り（' + x.id + '）を ' + inq.id + ' として登録済み'; }
+      else if (act) { out.projectId = act.projectId || out.projectId; out.inquiryId = act.inquiryId || out.inquiryId; out.reason = '同じやり取り（' + x.id + '）を対応履歴 ' + act.id + ' に追加済み'; }
+    });
+    if (!out.reason && m.fromEmail) {
+      var c = S.data.contacts.filter(function (x) { return x.email && x.email.toLowerCase() === m.fromEmail.toLowerCase(); })[0];
+      if (c) out.reason = '差出人は連絡先 ' + c.id + '（' + c.name + '／' + (c.companyName || '所属なし') + '）';
+    }
+    return out;
+  }
+
+  /** 差出人から会社名を推定する：連絡先のメール一致 → 制作会社マスタのドメイン一致 */
+  function guessCompanyFromMail(m) {
+    var email = String(m.fromEmail || '').toLowerCase();
+    var c = S.data.contacts.filter(function (x) { return x.email && x.email.toLowerCase() === email; })[0];
+    if (c && c.companyName) return c.companyName;
+    var domain = email.split('@')[1] || '';
+    var hit = S.data.companies.filter(function (x) { return x.email && x.email.toLowerCase().split('@')[1] === domain; })[0];
+    return hit ? hit.name : '';
+  }
+
+  function renderMailDetail(id) {
+    var m = S.data.mailInbox.filter(function (x) { return x.id === id; })[0];
+    if (!m) { view.innerHTML = '<a class="back" href="#" data-go="/mail">← 新着メール</a><p class="error">受信メール ' + esc(id) + ' が見つかりません</p>'; return; }
+    var cand = mailCandidates(m);
+    var html = '<a class="back" href="#" data-go="/mail">← 新着メール</a>' +
+      '<div class="detail-head"><h1>' + esc(m.subject || '（件名なし）') + '</h1>' + mailBadge(m.status) + '</div>' +
+      '<div class="sub">' + esc(m.id) + '／受信 ' + esc(m.receivedAt) + '</div>';
+
+    if (m.status === '未確認') {
+      html += '<div class="actions">' +
+        '<a class="btn' + (cand.projectId || cand.inquiryId ? '' : ' btn-primary') + '" href="#" data-go="' + esc(link('/edit/inquiries/new', { _fromMailId: m.id })) + '">問い合わせとして登録</a>' +
+        '<a class="btn' + (cand.projectId || cand.inquiryId ? ' btn-primary' : '') + '" href="#" data-go="' +
+        esc(link('/edit/activities/new', { _fromMailId: m.id, projectId: cand.projectId, inquiryId: cand.inquiryId })) + '">既存案件の対応履歴にする</a>' +
+        '<button type="button" class="btn" data-action="mail-status" data-mail="' + esc(m.id) + '" data-op="ignore">対象外にする</button></div>';
+      if (cand.reason) html += '<div class="next-action"><div class="label">候補</div>' + esc(cand.reason) +
+        (cand.projectId ? '　→ <a href="#" data-go="/projects/' + esc(cand.projectId) + '">' + esc(cand.projectId) + ' ' + esc((IDX.projects[cand.projectId] || {}).title || '') + '</a>' : '') + '</div>';
+    } else {
+      var target = m.targetId ? (IDX.inquiries[m.targetId] ? '/inquiries/' + m.targetId : null) : null;
+      if (!target && m.targetId) {
+        var act = S.data.activities.filter(function (a) { return a.id === m.targetId; })[0];
+        if (act) target = act.projectId ? '/projects/' + act.projectId : (act.inquiryId ? '/inquiries/' + act.inquiryId : null);
+      }
+      html += '<div class="card">' + esc(m.status) + (m.targetId ? '：' + (target ? '<a href="#" data-go="' + esc(target) + '">' + esc(m.targetId) + '</a>' : esc(m.targetId)) : '') +
+        (m.handledAt ? '<div class="meta">' + esc(m.handledAt) + '　' + esc(m.handledBy) + '</div>' : '') +
+        (m.status === '対象外' ? '<div class="actions" style="margin:8px 0 0"><button type="button" class="btn btn-small" data-action="mail-status" data-mail="' + esc(m.id) + '" data-op="reopen">未確認に戻す</button></div>' : '') + '</div>';
+    }
+
+    html += mailAiSection(m);
+
+    html += '<section class="card"><dl class="kv"><dt>差出人</dt><dd>' + esc(m.fromName) + ' &lt;' + esc(m.fromEmail) + '&gt;</dd>' +
+      '<dt>添付</dt><dd>' + dash(m.attachments) + (m.attachments ? '<div class="note" style="margin:2px 0 0">添付ファイルは窓口アドレスのGmailで確認してください</div>' : '') + '</dd></dl>' +
+      '<div class="mail-body">' + esc(m.body) + '</div></section>';
+    view.innerHTML = html;
+  }
+
+  function mailAiExtract(m) {
+    try { return m.aiExtract ? JSON.parse(m.aiExtract) : null; } catch (e) { return null; }
+  }
+
+  /** AI 下書きの表示（作成ボタン・分類案・要約・不足情報・返信案） */
+  function mailAiSection(m) {
+    var hasAi = !!(m.aiCategory || m.aiSummary);
+    var html = '<section class="card ai-card"><div class="sec-head"><h2>AI下書き</h2>' +
+      (m.status === '未確認' ? '<button type="button" class="btn btn-small" data-action="mail-draft" data-mail="' + esc(m.id) + '">' + (hasAi ? '作り直す' : 'AIで下書きを作る') + '</button>' : '') + '</div>';
+    if (!hasAi) {
+      return html + '<p class="empty" style="margin:0">まだ作っていません。分類・要約・足りない情報・返信の文案をAIが下書きします（電話番号・メールアドレスは伏せて送ります）。</p></section>';
+    }
+    var ex = mailAiExtract(m) || {};
+    var rows = [['分類案', m.aiCategory], ['作品名', ex.title], ['会社', ex.companyName], ['担当者', ex.contactName], ['撮影時期', ex.shootPeriod], ['人数', ex.headcount], ['希望', ex.locationWishes]]
+      .filter(function (r) { return r[1]; });
+    html += '<p class="note" style="margin-top:0">AIの推定です。間違いがあり得るので、必ず本文と見比べてください。</p>';
+    if (m.aiCategory === '対象外候補') html += '<div class="next-action" style="margin-bottom:12px"><div class="label">AIの判断</div>撮影の相談ではない（営業・お知らせなど）ようです。問題なければ「対象外にする」を押してください。</div>';
+    html += '<dl class="kv">' + rows.map(function (r) { return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>'; }).join('') + '</dl>';
+    if (m.aiSummary) html += '<h3 class="ai-h">要約</h3><div class="mail-body" style="border:0;margin:0;padding:0">' + esc(m.aiSummary) + '</div>';
+    if (m.aiMissing) html += '<h3 class="ai-h">足りない情報</h3><ul class="ai-list">' + m.aiMissing.split('\n').map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
+    if (m.aiReply) {
+      html += '<div class="sec-head" style="margin-top:12px"><h3 class="ai-h" style="margin:0">返信の文案</h3>' +
+        '<button type="button" class="btn btn-small" data-action="copy-reply">コピー</button></div>' +
+        '<textarea id="ai-reply" class="ai-reply" rows="10" aria-label="返信の文案（編集してからコピーできます）">' + esc(m.aiReply) + '</textarea>' +
+        '<p class="note">直してからコピーし、窓口アドレスのGmailで返信してください（アプリからは送信しません）。</p>';
+    }
+    return html + '</section>';
+  }
+
+  /** 受信メールから登録フォームの初期値を作る（URL には載せない）。AI 下書きがあれば使う */
+  function prefillFromMail(table, mailId) {
+    var m = S.data.mailInbox.filter(function (x) { return x.id === mailId; })[0];
+    if (!m) return {};
+    var body = String(m.body || '');
+    var ex = mailAiExtract(m) || {};
+    if (table === 'inquiries') {
+      var cat = S.enums['問い合わせ分類'].indexOf(m.aiCategory) >= 0 ? m.aiCategory : '';
+      return {
+        receivedAt: m.receivedAt, channel: 'メール', contactName: ex.contactName || m.fromName, email: m.fromEmail,
+        companyName: guessCompanyFromMail(m) || ex.companyName || '', title: ex.title || '', category: cat,
+        body: (m.subject ? '件名：' + m.subject + '\n\n' : '') + body.slice(0, 3000),
+      };
+    }
+    if (table === 'activities') {
+      return { actedAt: m.receivedAt, method: 'メール', content: '【受信】' + (m.subject || '') + '\n' + (m.aiSummary ? '（要約）' + m.aiSummary : body.slice(0, 1500)) };
+    }
+    return {};
+  }
+
+  // ===== 連絡先（名刺） =====
+  var contactQuery = '';
+
+  function renderContacts() {
+    var html = pageHead('連絡先', '<a class="btn btn-primary" href="#" data-go="/scan">名刺を撮る</a> <a class="btn" href="#" data-go="/edit/contacts/new">＋ 手入力</a>') +
+      '<div class="filters" role="search" style="grid-template-columns:1fr"><input type="search" id="contact-q" placeholder="氏名・会社・部署・メールで検索" value="' + esc(contactQuery) + '" aria-label="キーワード"></div>' +
+      '<div id="contact-list"></div>';
+    view.innerHTML = html;
+    document.getElementById('contact-q').addEventListener('input', function (e) { contactQuery = e.target.value; renderContactRows(); });
+    renderContactRows();
+    fab('/scan', '名刺を撮る', 'camera');
+  }
+
+  function renderContactRows() {
+    var q = contactQuery.trim().toLowerCase();
+    var rows = S.data.contacts.filter(function (c) {
+      return !q || [c.name, c.companyName, c.department, c.position, c.email].join(' ').toLowerCase().indexOf(q) >= 0;
+    }).sort(function (a, b) { return compare(a, b, 'updatedAt', -1); });
+    var html = '<div class="count">' + rows.length + '件</div>';
+    if (!rows.length) html += '<p class="empty">該当する連絡先はありません</p>';
+    rows.forEach(function (c) { html += contactItem(c, true); });
+    document.getElementById('contact-list').innerHTML = '<div class="card">' + html + '</div>';
+  }
+
+  function contactItem(c, showCompany) {
+    var tel = c.mobile || c.phone;
+    return '<div class="item">' + editLink('contacts', c.id) + '<strong>' + esc(c.name) + '</strong> <span class="chip">' + dash(c.category) + '</span>' +
+      (c.source === '名刺読み取り' ? ' <span class="chip">名刺</span>' : '') +
+      '<div class="meta">' + (showCompany ? esc(c.companyName || '（所属なし）') + '　' : '') + esc([c.department, c.position].filter(Boolean).join(' ')) + '</div>' +
+      '<div class="meta">' + (tel ? '<a href="tel:' + esc(tel.replace(/[^\d+]/g, '')) + '">' + esc(tel) + '</a>' : '') +
+      (c.email ? (tel ? '　' : '') + '<a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a>' : '') + '</div>' +
+      (c.metEvent || c.metAt ? '<div class="meta">' + esc([c.metAt, c.metEvent].filter(Boolean).join('　')) + '</div>' : '') + '</div>';
+  }
+
+  /** 同じ人がすでに登録されていないか（メール一致、または氏名＋会社一致） */
+  function findDuplicateContacts(data, selfId) {
+    var norm = function (s) { return String(s || '').replace(/\s+/g, '').toLowerCase(); };
+    return S.data.contacts.filter(function (c) {
+      if (c.id === selfId) return false;
+      if (data.email && norm(c.email) === norm(data.email)) return true;
+      return data.name && data.companyName && norm(c.name) === norm(data.name) && norm(c.companyName) === norm(data.companyName);
+    });
+  }
+
+  // ===== 名刺を撮る（アプリ内カメラ＋枠） =====
+  var cameraStream = null;
+  var pendingPrefill = null;   // 読み取り結果。URL には載せない（個人情報を履歴に残さないため）
+  var CARD_RATIO = 91 / 55;
+
+  function stopCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(function (t) { t.stop(); });
+      cameraStream = null;
+    }
+    var v = document.getElementById('scan-video');
+    if (v) v.srcObject = null;
+  }
+
+  function renderScan() {
+    view.innerHTML = '<a class="back" href="#" data-go="/contacts">← 連絡先</a><h1>名刺を撮る</h1>' +
+      '<div class="scan-box" id="scan-box">' +
+      '<video id="scan-video" playsinline muted autoplay></video>' +
+      '<div class="scan-frame" id="scan-frame"><span>名刺を枠に合わせてください</span></div>' +
+      '<img id="scan-preview" alt="撮影した名刺" hidden>' +
+      '<div class="scan-status" id="scan-status" role="status">カメラを起動しています…</div>' +
+      '</div>' +
+      '<div class="scan-actions" id="scan-actions">' +
+      '<button type="button" class="btn btn-primary scan-shutter" id="scan-shutter" disabled>撮影</button>' +
+      '<label class="btn" for="scan-file">写真を選ぶ／撮る</label>' +
+      '<input type="file" id="scan-file" accept="image/*" capture="environment" hidden>' +
+      '</div>' +
+      '<p class="note">読み取った内容は保存前に確認画面で直せます。画像は保存しません。試作中は架空の名刺だけで試してください。</p>';
+
+    document.getElementById('scan-shutter').addEventListener('click', captureFromVideo);
+    document.getElementById('scan-file').addEventListener('change', function (e) {
+      var f = e.target.files && e.target.files[0];
+      if (!f) return;
+      var img = new Image();
+      img.onload = function () { useImage(img, img.naturalWidth, img.naturalHeight, false); URL.revokeObjectURL(img.src); };
+      img.onerror = function () { setScanStatus('画像を読み込めませんでした', true); };
+      img.src = URL.createObjectURL(f);
+    });
+    startCamera();
+  }
+
+  function setScanStatus(msg, isError) {
+    var el = document.getElementById('scan-status');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.toggle('error-text', !!isError);
+    el.hidden = !msg;
+  }
+
+  function startCamera() {
+    var video = document.getElementById('scan-video');
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+      cameraUnavailable('この画面ではカメラを直接使えません。');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+      .then(function (stream) {
+        if (!document.getElementById('scan-video')) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+        cameraStream = stream;
+        video.srcObject = stream;
+        video.onloadedmetadata = function () {
+          video.play();
+          document.getElementById('scan-shutter').disabled = false;
+          setScanStatus('');
+        };
+      })
+      .catch(function (err) {
+        cameraUnavailable(err && err.name === 'NotAllowedError' ? 'カメラの使用が許可されていません。' : 'カメラを起動できませんでした。');
+      });
+  }
+
+  function cameraUnavailable(reason) {
+    var box = document.getElementById('scan-box');
+    if (!box) return;
+    box.classList.add('no-camera');
+    document.getElementById('scan-shutter').hidden = true;
+    setScanStatus(reason + '下の「写真を選ぶ／撮る」から撮影してください（スマホではカメラが開きます）。', false);
+  }
+
+  /** 映像から、画面上の枠に当たる部分だけを切り抜く */
+  function captureFromVideo() {
+    var video = document.getElementById('scan-video');
+    var frame = document.getElementById('scan-frame');
+    var vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) return;
+    var vr = video.getBoundingClientRect(), fr = frame.getBoundingClientRect();
+    // video は object-fit: cover で表示しているので、表示座標→映像座標の倍率とずれを求める
+    var scale = Math.max(vr.width / vw, vr.height / vh);
+    var offX = (vw * scale - vr.width) / 2, offY = (vh * scale - vr.height) / 2;
+    var sx = (fr.left - vr.left + offX) / scale, sy = (fr.top - vr.top + offY) / scale;
+    var sw = fr.width / scale, sh = fr.height / scale;
+    var canvas = drawToCanvas(video, Math.max(0, sx), Math.max(0, sy), Math.min(sw, vw), Math.min(sh, vh));
+    stopCamera();
+    showPreviewAndRead(canvas);
+  }
+
+  /** ファイルから選んだ写真は全体を使う（向きが横倒しでも読み取りはできる） */
+  function useImage(img, w, h) {
+    stopCamera();
+    var canvas = drawToCanvas(img, 0, 0, w, h);
+    showPreviewAndRead(canvas);
+  }
+
+  function drawToCanvas(src, sx, sy, sw, sh) {
+    var MAX = 1600;
+    var k = Math.min(1, MAX / Math.max(sw, sh));
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.round(sw * k);
+    canvas.height = Math.round(sh * k);
+    canvas.getContext('2d').drawImage(src, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
+
+  function showPreviewAndRead(canvas) {
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    var box = document.getElementById('scan-box');
+    var prev = document.getElementById('scan-preview');
+    if (!box || !prev) return;
+    box.classList.add('captured');
+    prev.src = dataUrl;
+    prev.hidden = false;
+    document.getElementById('scan-actions').innerHTML =
+      '<button type="button" class="btn btn-primary" id="scan-read">この写真で読み取る</button>' +
+      '<button type="button" class="btn" id="scan-retake">撮り直す</button>';
+    setScanStatus('');
+    document.getElementById('scan-retake').addEventListener('click', function () { render('/scan'); });
+    document.getElementById('scan-read').addEventListener('click', function (e) {
+      var btn = e.target;
+      btn.disabled = true;
+      btn.textContent = '読み取り中…（10〜20秒）';
+      document.getElementById('scan-retake').disabled = true;
+      setScanStatus('読み取っています…');
+      callRaw('apiReadCard', [dataUrl.split(',')[1]], function (json) {
+        var card = JSON.parse(json);
+        var note = card.otherNotes ? '名刺の追記：' + card.otherNotes : '';
+        pendingPrefill = {
+          name: card.name, companyName: card.companyName, department: card.department, position: card.position,
+          phone: card.phone, mobile: card.mobile, email: card.email, address: card.address, note: note,
+          source: '名刺読み取り', metAt: S.today, category: guessCategory(card.companyName),
+        };
+        go('/edit/contacts/new?_prefill=1');
+      }, function (msg) {
+        btn.disabled = false;
+        btn.textContent = 'もう一度読み取る';
+        document.getElementById('scan-retake').disabled = false;
+        setScanStatus(msg, true);
+      });
+    });
+  }
+
+  function guessCategory(company) {
+    var c = String(company || '');
+    if (/市|町|村|県|都|府|省|庁|協議会|協会|組合|商工会|観光/.test(c) && !/株式会社|有限会社|合同会社/.test(c)) return '自治体・団体';
+    return '制作会社';
+  }
+
+  /** 保存以外のサーバー呼び出し（データの再読み込みはしない） */
+  function callRaw(fn, args, onOk, onNg) {
+    if (!(typeof google !== 'undefined' && google.script && google.script.run)) { onNg('この画面では使えません（Apps Script の外で開かれています）'); return; }
+    var runner = google.script.run
+      .withSuccessHandler(onOk)
+      .withFailureHandler(function (err) { onNg(err && err.message ? err.message : String(err)); });
+    runner[fn].apply(runner, args);
+  }
+
+  // ===== マスタ（ロケ地・制作会社） =====
+  function renderMaster() {
+    var locs = S.data.locations.slice().sort(function (a, b) { return compare(a, b, 'id', 1); });
+    var comps = S.data.companies.slice().sort(function (a, b) { return compare(a, b, 'id', 1); });
+    var html = '<h1>ロケ地・制作会社</h1>';
+    var issues = S.issues || [];
+    html += '<section class="card" id="data-check"><div class="sec-head"><h2>データ点検（' + (issues.length ? issues.length + '件' : '問題なし') + '）</h2>' +
+      (S.sheetUrl ? '<a class="btn btn-small" href="' + esc(S.sheetUrl) + '" target="_blank" rel="noopener">シートを開く ↗</a>' : '') + '</div>';
+    if (!issues.length) {
+      html += '<p class="empty" style="margin:0">シートの番号・選択肢・参照に問題は見つかりませんでした。</p>';
+    } else {
+      html += '<p class="note" style="margin-top:0">シートを直接編集したときに起きやすい不整合です。アプリからは自動で直さないので、シートか各画面の「編集」で直してください。</p>';
+      issues.slice(0, 50).forEach(function (i) {
+        var route = { inquiries: '/inquiries/', projects: '/projects/', scouts: '/scouts/' }[i.table];
+        var editable = S.editable[i.table] && S.data[i.table].filter(function (r) { return r.id === i.id; }).length === 1;
+        html += '<div class="item"><strong>' + esc(i.sheet) + '</strong> ' + esc(i.row) + '行目' + (i.id ? '（' + esc(i.id) + '）' : '') +
+          (editable ? ' <a href="#" data-go="' + esc(route ? route + i.id : '/edit/' + i.table + '/' + i.id) + '">開く</a>' : '') +
+          '<div class="meta">' + esc(i.message) + '</div></div>';
+      });
+      if (issues.length > 50) html += '<p class="note">ほか ' + (issues.length - 50) + ' 件</p>';
+    }
+    html += '</section>';
+    html += '<section class="card">' + secHead('ロケ地（' + locs.length + 'か所）', '/edit/locations/new');
+    locs.forEach(function (l) {
+      html += '<div class="item">' + editLink('locations', l.id) + '<strong>' + esc(l.name) + '</strong> <span class="chip">' + dash(l.category) + '</span>' +
+        '<div class="meta">' + esc(l.id) + '／' + dash(l.address) + '／' + dash(l.contact) + '</div>' +
+        (l.conditions ? '<div class="meta">撮影条件：' + esc(l.conditions) + '</div>' : '') + '</div>';
+    });
+    html += '</section><section class="card">' + secHead('制作会社（' + comps.length + '社）', '/edit/companies/new');
+    comps.forEach(function (c) {
+      html += '<div class="item">' + editLink('companies', c.id) + '<strong>' + esc(c.name) + '</strong>' +
+        '<div class="meta">' + esc(c.id) + '／' + dash(c.contactName) + '／' + dash(c.email) + '／' + dash(c.phone) + '</div>' +
+        (c.note ? '<div class="meta">' + esc(c.note) + '</div>' : '') + '</div>';
+    });
+    html += '</section>';
+    view.innerHTML = html;
+  }
+
+  // ===== 登録・編集フォーム（Phase 5） =====
+  var FORM_TITLE = { inquiries: '問い合わせ', projects: '案件', activities: '対応履歴', scouts: 'ロケハン', contacts: '連絡先', shootPlans: '撮影計画', results: '撮影実績', locations: 'ロケ地', companies: '制作会社' };
+  var AUTO_KEYS = ['id', 'createdAt', 'updatedAt'];
+  var TEXT_SUGGEST = { assignee: true, contactName: false };
+
+  function nowStr() {
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function toInputDate(v) { return v ? String(v).slice(0, 10).replace(/\//g, '-') : ''; }
+  function toInputDateTime(v) { return v ? String(v).slice(0, 16).replace(/\//g, '-').replace(' ', 'T') : ''; }
+
+  function backRouteOf(table, rec, query) {
+    if (!(rec && rec.id) && query && query._fromMailId) return '/mail/' + query._fromMailId;
+    if (table === 'inquiries') return rec && rec.id ? '/inquiries/' + rec.id : (query.projectId ? '/projects/' + query.projectId : '/inquiries');
+    if (table === 'projects') return rec && rec.id ? '/projects/' + rec.id : (query._fromInquiryId ? '/inquiries/' + query._fromInquiryId : '/projects');
+    if (table === 'locations' || table === 'companies') return '/master';
+    if (table === 'contacts') return '/contacts';
+    if (table === 'scouts') return rec && rec.id ? '/scouts/' + rec.id : (query.projectId ? '/projects/' + query.projectId : '/scouts');
+    var pid = (rec && rec.projectId) || query.projectId;
+    if (pid) return '/projects/' + pid;
+    var iid = (rec && rec.inquiryId) || query.inquiryId;
+    return iid ? '/inquiries/' + iid : '/projects';
+  }
+
+  function renderForm(table, id, query) {
+    var sch = S.schema[table], ed = S.editable[table];
+    if (!sch || !ed) { view.innerHTML = '<p class="error">このデータは画面から編集できません</p>'; return; }
+    var isNew = id === 'new';
+    var rec = {};
+    if (isNew) {
+      Object.keys(ed.defaults).forEach(function (k) { rec[k] = ed.defaults[k] === '__now' ? nowStr() : ed.defaults[k]; });
+      Object.keys(query).forEach(function (k) { if (k !== '_prefill') rec[k] = query[k]; });
+      if (query._prefill && pendingPrefill) Object.keys(pendingPrefill).forEach(function (k) { rec[k] = pendingPrefill[k]; });
+      if (query._fromMailId) {
+        var mp = prefillFromMail(table, query._fromMailId);
+        Object.keys(mp).forEach(function (k) { if (!query[k]) rec[k] = mp[k]; });
+      }
+    } else {
+      var found = S.data[table].filter(function (r) { return r.id === id; })[0];
+      if (!found) { view.innerHTML = '<a class="back" href="#" data-go="/">← 戻る</a><p class="error">' + esc(id) + ' が見つかりません</p>'; return; }
+      rec = Object.assign({}, found);
+    }
+    var back = backRouteOf(table, isNew ? null : rec, query);
+
+    var html = '<a class="back" href="#" data-go="' + esc(back) + '">← 戻る</a>' +
+      '<h1>' + esc(FORM_TITLE[table]) + (isNew ? 'を登録' : 'を編集') + '</h1>' +
+      (isNew ? '' : '<div class="sub">' + esc(id) + '</div>') +
+      '<form id="edit-form" class="card form" novalidate data-table="' + table + '" data-id="' + esc(id) + '" data-back="' + esc(back) + '">' +
+      '<div class="form-error" id="form-error" role="alert" hidden></div>';
+
+    if (query._prefill && pendingPrefill) {
+      html += '<div class="next-action" style="margin-top:0"><div class="label">名刺から読み取りました</div>読み間違いがないか確認してから保存してください。' +
+        '<div class="actions" style="margin:8px 0 0"><a class="btn btn-small" href="#" data-go="/scan">撮り直す</a></div></div>';
+    }
+    if (query._fromMailId) {
+      var srcMail = S.data.mailInbox.filter(function (x) { return x.id === query._fromMailId; })[0];
+      if (srcMail && (srcMail.aiCategory || srcMail.aiSummary)) {
+        html += '<div class="next-action" style="margin-top:0"><div class="label">AI下書きを使って入力しています</div>作品名・会社・分類などはAIの推定です。本文と見比べてから保存してください。</div>';
+      }
+      html += '<p class="note" style="margin-top:0">受信メール ' + esc(query._fromMailId) + ' から作成しています。保存すると、このメールは「' +
+        (table === 'inquiries' ? '問い合わせ登録済み' : '対応履歴に追加済み') + '」になります。</p>' +
+        '<input type="hidden" name="_fromMailId" value="' + esc(query._fromMailId) + '">';
+    }
+    if (query._fromInquiryId) {
+      html += '<p class="note" style="margin-top:0">保存すると、問い合わせ ' + esc(query._fromInquiryId) + ' がこの案件に紐付きます。</p>' +
+        '<input type="hidden" name="_fromInquiryId" value="' + esc(query._fromInquiryId) + '">';
+    }
+
+    sch.columns.forEach(function (c) {
+      if (AUTO_KEYS.indexOf(c.key) >= 0) return;
+      if (c.key === 'companyId' && (table === 'inquiries' || table === 'projects' || table === 'contacts')) return; // 会社名から自動で付く
+      html += fieldHtml(table, c, rec[c.key], ed.required.indexOf(c.key) >= 0);
+      if (table === 'shootPlans' && c.key === 'headcount') html += planLocationsField(isNew ? [] : (S.groups.locsByPlan[id] || []).map(function (x) { return x.locationId; }));
+      if (table === 'scouts' && c.key === 'companions') html += scoutLocationsField(isNew ? [] : (S.groups.scoutLocsByScout[id] || []));
+    });
+
+    html += '<div class="form-actions"><button type="submit" class="btn btn-primary">保存</button>' +
+      '<a class="btn" href="#" data-go="' + esc(back) + '">キャンセル</a></div></form>';
+    view.innerHTML = html;
+
+    var form = document.getElementById('edit-form');
+    form.addEventListener('submit', onSubmitForm);
+    var companyInput = form.querySelector('[name="companyName"]');
+    if (companyInput) {
+      var hint = document.getElementById('company-hint');
+      var updateHint = function () {
+        var v = companyInput.value.replace(/\s+/g, '');
+        var hit = v && S.data.companies.some(function (c) { return c.name.replace(/\s+/g, '') === v; });
+        hint.textContent = !v ? '登録済みの会社は入力すると候補に出ます' : hit ? '登録済みの制作会社に紐付きます' : '未登録の会社として保存します（あとで「ロケ地・会社」から登録できます）';
+      };
+      companyInput.addEventListener('input', updateHint);
+      updateHint();
+    }
+    var checks = form.querySelectorAll('.scout-loc input[type=checkbox]');
+    Array.prototype.forEach.call(checks, function (cb) {
+      var sync = function () {
+        cb.closest('.scout-loc').classList.toggle('on', cb.checked);
+        Array.prototype.forEach.call(cb.closest('.scout-loc').querySelectorAll('select, input[type=text]'), function (el) { el.disabled = !cb.checked; });
+      };
+      cb.addEventListener('change', sync);
+      sync();
+    });
+  }
+
+  function scoutLocationsField(current) {
+    var byLoc = {};
+    current.forEach(function (x) { byLoc[x.locationId] = x; });
+    var locs = S.data.locations.slice().sort(function (a, b) {
+      var x = byLoc[a.id] ? 0 : 1, y = byLoc[b.id] ? 0 : 1;   // 選択済みを上に
+      return x - y || compare(a, b, 'id', 1);
+    });
+    return '<fieldset class="field"><legend>回るロケ地と評価（複数選べます）</legend><div class="scout-locs">' +
+      locs.map(function (l) {
+        var cur = byLoc[l.id];
+        return '<div class="scout-loc" data-loc="' + esc(l.id) + '"><label class="scout-loc-name"><input type="checkbox" value="' + esc(l.id) + '"' + (cur ? ' checked' : '') + '> ' + esc(l.name) + '</label>' +
+          '<div class="scout-loc-eval"><select aria-label="' + esc(l.name) + 'の評価">' + S.enums['ロケハン評価'].map(function (e) {
+            return '<option' + ((cur ? cur.evaluation : '未評価') === e ? ' selected' : '') + '>' + esc(e) + '</option>';
+          }).join('') + '</select><input type="text" placeholder="先方の反応（任意）" aria-label="' + esc(l.name) + 'での先方の反応" value="' + esc(cur ? cur.reaction : '') + '"></div></div>';
+      }).join('') + '</div><a class="note" href="#" data-go="/edit/locations/new">ロケ地を新しく登録する</a></fieldset>';
+  }
+
+  function fieldHtml(table, c, value, required) {
+    var fid = 'f-' + c.key;
+    var v = value == null ? '' : value;
+    var attrs = ' id="' + fid + '" name="' + c.key + '"' + (required ? ' required aria-required="true"' : '');
+    var input;
+    if (c.type.indexOf('enum:') === 0) {
+      var list = S.enums[c.type.slice(5)];
+      input = '<select' + attrs + '><option value="">' + (required ? '（選んでください）' : '（未選択）') + '</option>' +
+        list.map(function (o) { return '<option value="' + esc(o) + '"' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+    } else if (c.type.indexOf('ref:') === 0) {
+      input = '<select' + attrs + '><option value="">' + (required ? '（選んでください）' : '（選ばない）') + '</option>' + refOptions(c.type.slice(4), v) + '</select>';
+    } else if (c.type === 'date') {
+      input = '<input type="date"' + attrs + ' value="' + esc(toInputDate(v)) + '">';
+    } else if (c.type === 'datetime') {
+      input = '<input type="datetime-local"' + attrs + ' value="' + esc(toInputDateTime(v)) + '">';
+    } else if (c.type === 'int' || c.type === 'yen') {
+      input = '<input type="number" min="0" step="1" inputmode="numeric"' + attrs + ' value="' + esc(v) + '">' + (c.type === 'yen' ? '<span class="suffix">円</span>' : '');
+    } else if (c.type === 'longtext') {
+      input = '<textarea rows="3"' + attrs + '>' + esc(v) + '</textarea>';
+    } else {
+      var isCompany = c.key === 'companyName';
+      var listId = (TEXT_SUGGEST[c.key] || isCompany) ? 'dl-' + c.key : '';
+      var inputType = c.key === 'email' ? 'email' : 'text';
+      input = '<input type="' + inputType + '"' + attrs + ' value="' + esc(v) + '"' + (listId ? ' list="' + listId + '" autocomplete="off"' : '') +
+        (inputType === 'email' ? ' inputmode="email" autocomplete="off" placeholder="name@example.com"' : '') + '>';
+      var suggestions = isCompany
+        ? uniq(S.data.companies.map(function (x) { return x.name; }).concat(knownValues('companyName'))).sort()
+        : (listId ? knownValues(c.key) : []);
+      if (listId) input += '<datalist id="' + listId + '">' + suggestions.map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>';
+      if (isCompany) input += '<div class="note" id="company-hint" style="margin-top:4px"></div>';
+    }
+    return '<div class="field"><label for="' + fid + '">' + esc(c.label) + (required ? '<span class="req">必須</span>' : '') + '</label>' + input + '</div>';
+  }
+
+  function refOptions(ref, selected) {
+    var rows = (S.data[ref] || []).slice();
+    var labelOf = {
+      projects: function (r) { return r.id + '　' + r.title; },
+      inquiries: function (r) { return r.id + '　' + (r.title || r.companyName); },
+      companies: function (r) { return r.name; },
+      locations: function (r) { return r.name; },
+      shootPlans: function (r) { return r.id + '　' + r.shootDate; },
+    }[ref] || function (r) { return r.id; };
+    var dir = (ref === 'companies' || ref === 'locations') ? 1 : -1;
+    rows.sort(function (a, b) { return compare(a, b, 'id', dir); });
+    return rows.map(function (r) {
+      return '<option value="' + esc(r.id) + '"' + (r.id === selected ? ' selected' : '') + '>' + esc(labelOf(r)) + '</option>';
+    }).join('');
+  }
+
+  function knownValues(key) {
+    var all = [];
+    ['inquiries', 'projects', 'activities'].forEach(function (t) {
+      S.data[t].forEach(function (r) { if (r[key]) all.push(r[key]); });
+    });
+    return uniq(all).sort();
+  }
+
+  function planLocationsField(selectedIds) {
+    var locs = S.data.locations.slice().sort(function (a, b) { return compare(a, b, 'id', 1); });
+    return '<fieldset class="field checks"><legend>ロケ地（複数選べます）</legend><div class="check-grid">' +
+      locs.map(function (l) {
+        return '<label><input type="checkbox" name="locationIds" value="' + esc(l.id) + '"' + (selectedIds.indexOf(l.id) >= 0 ? ' checked' : '') + '> ' + esc(l.name) + '</label>';
+      }).join('') + '</div><a class="note" href="#" data-go="/edit/locations/new">ロケ地を新しく登録する</a></fieldset>';
+  }
+
+  function onSubmitForm(e) {
+    e.preventDefault();
+    var form = e.target;
+    var table = form.getAttribute('data-table');
+    var id = form.getAttribute('data-id');
+    var data = {};
+    Array.prototype.forEach.call(form.elements, function (el) {
+      if (!el.name || el.type === 'submit') return;
+      if (el.name === 'locationIds') {
+        data.locationIds = data.locationIds || [];
+        if (el.checked) data.locationIds.push(el.value);
+        return;
+      }
+      data[el.name] = el.value;
+    });
+    if (table === 'shootPlans' && !data.locationIds) data.locationIds = [];
+    if (table === 'scouts') {
+      data.locations = [];
+      Array.prototype.forEach.call(form.querySelectorAll('.scout-loc'), function (row) {
+        if (!row.querySelector('input[type=checkbox]').checked) return;
+        data.locations.push({
+          locationId: row.getAttribute('data-loc'),
+          evaluation: row.querySelector('select').value,
+          reaction: row.querySelector('input[type=text]').value,
+        });
+      });
+    }
+
+    var missing = S.editable[table].required.filter(function (k) { return !data[k]; }).map(function (k) {
+      var c = S.schema[table].columns.filter(function (x) { return x.key === k; })[0];
+      return c ? c.label : k;
+    });
+    if (missing.length) return showFormError('入力されていない項目があります：' + missing.join('、'));
+
+    if (table === 'contacts' && form.getAttribute('data-dup-ok') !== '1') {
+      var dups = findDuplicateContacts(data, id === 'new' ? '' : id);
+      if (dups.length) {
+        form.setAttribute('data-dup-ok', '1');
+        form.querySelector('button[type="submit"]').textContent = 'それでも保存する';
+        return showFormError('同じ人がすでに登録されているかもしれません：' + dups.map(function (c) {
+          return c.id + ' ' + c.name + '（' + (c.companyName || '所属なし') + '）';
+        }).join('、') + '。別の人なら、もう一度「それでも保存する」を押してください。');
+      }
+    }
+
+    var btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = '保存中…';
+    callServer('apiSave', [table, id === 'new' ? '' : id, JSON.stringify(data)], function (res) {
+      if (table === 'contacts') pendingPrefill = null;
+      toast('保存しました（' + res.id + '）');
+      var saved = S.data[table].filter(function (r) { return r.id === res.id; })[0];
+      go(backRouteOf(table, saved, {}));
+    }, function (msg) {
+      btn.disabled = false;
+      btn.textContent = '保存';
+      showFormError(msg);
+    });
+  }
+
+  function showFormError(msg) {
+    var el = document.getElementById('form-error');
+    if (!el) return;
+    el.textContent = msg;
+    el.hidden = false;
+    el.scrollIntoView({ block: 'center' });
+  }
+
+  /** サーバーの登録・更新を呼び、返ってきた最新データで描き直す */
+  function callServer(fn, args, onOk, onNg) {
+    if (!(typeof google !== 'undefined' && google.script && google.script.run)) {
+      onNg('この画面では保存できません（Apps Script の外で開かれています）');
+      return;
+    }
+    var runner = google.script.run
+      .withSuccessHandler(function (json) {
+        var res = JSON.parse(json);
+        loadData(res.bootstrap);
+        onOk(res);
+      })
+      .withFailureHandler(function (err) {
+        var msg = err && err.message ? err.message : String(err);
+        if (/permission|権限がありません|do not have/i.test(msg)) msg = '保存する権限がありません（スプレッドシートが「閲覧者」として共有されています）。登録・編集が必要なら、管理者に「編集者」での共有を依頼してください。';
+        onNg(msg);
+      });
+    runner[fn].apply(runner, args);
+  }
+
+  // ===== イベント =====
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-action="logout"]')) {
+      if (window.confirm('この端末からログアウトします。もう一度使うには新しい招待コードが必要です。よろしいですか？')) window.__lt.logout();
+      return;
+    }
+    if (e.target.closest('[data-action="copy-invite"]')) {
+      var code = document.getElementById('invite-code').textContent;
+      var copied = function () { toast('招待コードをコピーしました'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(copied, copied); else copied();
+      return;
+    }
+    var rv = e.target.closest('[data-action="revoke-user"]');
+    if (rv) {
+      var em = rv.getAttribute('data-email');
+      if (!window.confirm(em + ' の利用を取り消し、すべての端末をログアウトさせます。よろしいですか？')) return;
+      rv.disabled = true;
+      callRaw('adminRevokeUser', [em], function () { toast('取り消しました'); loadUserList(); }, function (msg) { rv.disabled = false; window.alert(msg); });
+      return;
+    }
+    var ft = e.target.closest('[data-action="toggle-filters"]');
+    if (ft) {
+      var box = ft.closest('.filters');
+      var open = !box.classList.contains('open');
+      box.classList.toggle('open', open);
+      ft.setAttribute('aria-expanded', String(open));
+      return;
+    }
+    var draftBtn = e.target.closest('[data-action="mail-draft"]');
+    if (draftBtn) {
+      var dmid = draftBtn.getAttribute('data-mail');
+      draftBtn.disabled = true;
+      draftBtn.textContent = '作成中…（10〜20秒）';
+      callServer('apiMailDraft', [dmid], function () {
+        toast('AI下書きを作りました');
+        render('/mail/' + dmid);
+      }, function (msg) {
+        draftBtn.disabled = false;
+        draftBtn.textContent = 'AIで下書きを作る';
+        window.alert('下書きを作れませんでした：' + msg);
+      });
+      return;
+    }
+    if (e.target.closest('[data-action="copy-reply"]')) {
+      var ta = document.getElementById('ai-reply');
+      var done = function () { toast('返信の文案をコピーしました'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(ta.value).then(done, function () { ta.select(); document.execCommand('copy'); done(); });
+      } else {
+        ta.select(); document.execCommand('copy'); done();
+      }
+      return;
+    }
+    var mailBtn = e.target.closest('[data-action="mail-status"]');
+    if (mailBtn) {
+      var mid = mailBtn.getAttribute('data-mail'), op = mailBtn.getAttribute('data-op');
+      if (op === 'ignore' && !window.confirm('このメールを「対象外」にします（あとで未確認に戻せます）。よろしいですか？')) return;
+      mailBtn.disabled = true;
+      callServer('apiMailStatus', [mid, op], function () {
+        toast(op === 'ignore' ? '対象外にしました' : '未確認に戻しました');
+        if (op === 'ignore') go('/mail'); else render('/mail/' + mid);
+      }, function (msg) {
+        mailBtn.disabled = false;
+        window.alert('できませんでした：' + msg);
+      });
+      return;
+    }
+    var action = e.target.closest('[data-action="change-status"]');
+    if (action) {
+      var sel = document.getElementById('status-select');
+      var table = action.getAttribute('data-table'), id = action.getAttribute('data-id');
+      var current = (S.data[table].filter(function (r) { return r.id === id; })[0] || {}).status;
+      if (sel.value === current) { toast('ステータスは変わっていません'); return; }
+      if (!window.confirm('ステータスを「' + current + '」から「' + sel.value + '」に変更します。よろしいですか？')) return;
+      action.disabled = true;
+      callServer('apiChangeStatus', [table, id, sel.value], function () {
+        toast('ステータスを「' + sel.value + '」に変更しました');
+        render((table === 'projects' ? '/projects/' : '/inquiries/') + id);
+      }, function (msg) {
+        action.disabled = false;
+        window.alert('変更できませんでした：' + msg);
+      });
+      return;
+    }
+    var sortBtn = e.target.closest('[data-sort]');
+    if (sortBtn) {
+      var s = sortBtn.getAttribute('data-sort').split(':');
+      var st = listState[s[0]];
+      if (st.sort === s[1]) st.dir = -st.dir; else { st.sort = s[1]; st.dir = 1; }
+      (s[0] === 'inquiries' ? renderInquiryRows : renderProjectRows)();
+      return;
+    }
+    var yearBtn = e.target.closest('.year-select [data-year]');
+    if (yearBtn) { resultsYear = yearBtn.getAttribute('data-year'); renderResults(); return; }
+
+    var link = e.target.closest('[data-go]');
+    if (link) {
+      e.preventDefault();
+      if (link.hasAttribute('data-year')) resultsYear = link.getAttribute('data-year');
+      go(link.getAttribute('data-go'));
+      return;
+    }
+    var tab = e.target.closest('.tabs a');
+    if (tab) {
+      e.preventDefault();
+      var t = tab.getAttribute('data-tab');
+      go(t === 'dashboard' ? '/' : '/' + t);
+    }
+  });
+
+  function onFilter(e) {
+    var el = e.target.closest('[data-filter]');
+    if (!el) return;
+    var f = el.getAttribute('data-filter').split(':');
+    listState[f[0]][f[1]] = el.value;
+    (f[0] === 'inquiries' ? renderInquiryRows : renderProjectRows)();
+  }
+  document.addEventListener('input', onFilter);
+  document.addEventListener('change', onFilter);
+
+  // ===== 起動 =====
+  function loadData(json) {
+    S = typeof json === 'string' ? JSON.parse(json) : json;
+    ['projects', 'inquiries', 'locations', 'companies'].forEach(function (k) { IDX[k] = by('id')(S.data[k]); });
+    S.groups = {
+      inquiriesByProject: group(S.data.inquiries, 'projectId'),
+      activitiesByProject: group(S.data.activities, 'projectId'),
+      activitiesByInquiry: group(S.data.activities, 'inquiryId'),
+      plansByProject: group(S.data.shootPlans, 'projectId'),
+      resultsByProject: group(S.data.results, 'projectId'),
+      locsByPlan: group(S.data.planLocations, 'planId'),
+      historyByTarget: group(S.data.statusHistory, 'targetId'),
+      scoutsByProject: group(S.data.scouts, 'projectId'),
+      scoutLocsByScout: group(S.data.scoutLocations, 'scoutId'),
+    };
+  }
+
+  function boot(json) {
+    loadData(json);
+    var sheetLink = document.getElementById('sheet-link');
+    if (sheetLink && S.sheetUrl) { sheetLink.href = S.sheetUrl; sheetLink.hidden = false; }
+    // アプリ名はサーバーから受け取る（公開している画面のコードには自治体名を書かない）
+    var title = document.querySelector('.app-title');
+    if (title && S.app && S.app.name && title.firstChild && title.firstChild.nodeType === 3) title.firstChild.nodeValue = S.app.name;
+    if (S.me) document.body.classList.toggle('role-viewer', S.me.role === 'viewer');
+    if (hasHistory) {
+      google.script.history.setChangeHandler(function (e) { render((e.state && e.state.route) || '/'); });
+      google.script.url.getLocation(function (loc) { render(loc.hash || '/'); });
+    } else {
+      window.addEventListener('hashchange', function () { render(location.hash || '/'); });
+      render(location.hash || '/');
+    }
+  }
+
+  function fail(err) {
+    var msg = err && err.message ? err.message : String(err);
+    if (/permission|権限|access|アクセス/i.test(msg)) {
+      view.innerHTML = '<div class="error">このアプリのスプレッドシートを開く権限がありません。<br>管理者（ロケツーリズム担当）に、いまログインしているGoogleアカウントへの共有を依頼してください。</div>' +
+        '<p class="note">詳細：' + esc(msg) + '</p>';
+      return;
+    }
+    view.innerHTML = '<div class="error">データを読み込めませんでした：' + esc(msg) + '</div>';
+  }
+
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run.withSuccessHandler(boot).withFailureHandler(fail).apiBootstrap();
+  } else {
+    fail('Apps Script の外で開かれています');
+  }
+})();
+</script>
+
+</body>
+</html>
